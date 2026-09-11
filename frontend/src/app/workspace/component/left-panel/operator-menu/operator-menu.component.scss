@@ -53,15 +53,23 @@
   height: 32px;
 }
 
+// #search-box is absolutely positioned, so it floats above the group list and
+// the list has to reserve that height by hand. These three values are one
+// measurement split in three — change one and the first group either hides
+// under the search box or leaves a gap.
+$search-input-height: 32px;
+$semantic-toggle-height: 24px;
+
 #spacer {
-  margin-top: 32px;
+  margin-top: $search-input-height + $semantic-toggle-height;
 }
 
 .semantic-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
+  height: $semantic-toggle-height;
+  padding: 0 9px;
   font-size: 11px;
   color: rgba(0, 0, 0, 0.55);
 }
@@ -71,10 +79,53 @@
   opacity: 0.75;
 }
 
-/* Sits at the far end of a suggestion row, so the ranked list reads as ranked. */
+// Offers the way out when the keyword search finds nothing. Sits below the
+// toggle it is pointing at, and overlays the list rather than displacing it —
+// #spacer reserves no room for a message that is usually absent.
+.semantic-suggestion {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.65);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: #f0f7ff;
+  }
+}
+
+// A suggestion is two stacked lines, so the fixed option height has to go.
+.suggestion {
+  height: auto !important;
+  line-height: 1.4 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.suggestion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+// The operator's own description, so a ranked hit says why it is relevant.
+.suggestion-description {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .semantic-score {
-  float: right;
-  margin-left: 8px;
+  flex: none;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: rgba(0, 0, 0, 0.45);

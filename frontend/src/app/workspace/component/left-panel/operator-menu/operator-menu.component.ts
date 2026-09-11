@@ -149,6 +149,19 @@ export class OperatorMenuComponent {
     this.runSearch(this.searchInputValue);
   }
 
+  /**
+   * True when the keyword search came back empty for a query the user actually
+   * typed — the case where ranking by meaning is worth offering.
+   */
+  public get showSemanticSuggestion(): boolean {
+    return !this.semanticEnabled && this.searchInputValue.trim().length > 0 && this.autocompleteOptions.length === 0;
+  }
+
+  public enableSemanticSearch(): void {
+    this.semanticEnabled = true;
+    this.runSearch(this.searchInputValue);
+  }
+
   /** Relevance of a suggestion, formatted for display, or undefined if ranked by keyword. */
   public scoreLabel(operator: OperatorSchema): string | undefined {
     const score = this.semanticScores.get(operator.operatorType);

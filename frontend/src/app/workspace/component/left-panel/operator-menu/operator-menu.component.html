@@ -30,16 +30,24 @@
     (selectionChange)="onSelectionChange($event)">
     <nz-auto-option
       *ngFor="let option of autocompleteOptions"
+      class="suggestion"
       [nzValue]="option"
       [nzLabel]="option.additionalMetadata.userFriendlyName"
       [nzDisabled]="! canModify">
-      <texera-operator-label [operator]="option"></texera-operator-label>
-      <span
-        *ngIf="scoreLabel(option) as score"
-        class="semantic-score"
-        title="relevance">
-        {{ score }}
-      </span>
+      <div class="suggestion-head">
+        <texera-operator-label [operator]="option"></texera-operator-label>
+        <span
+          *ngIf="scoreLabel(option) as score"
+          class="semantic-score"
+          title="relevance">
+          {{ score }}
+        </span>
+      </div>
+      <div
+        *ngIf="option.additionalMetadata.operatorDescription as description"
+        class="suggestion-description">
+        {{ description }}
+      </div>
     </nz-auto-option>
   </nz-autocomplete>
 
@@ -55,6 +63,16 @@
       >loading model…</span
     >
   </div>
+
+  <!-- The keyword search only matches operator names, so a query phrased as an
+       intent comes back empty. Say what happened and offer the way out. -->
+  <button
+    *ngIf="showSemanticSuggestion"
+    type="button"
+    class="semantic-suggestion"
+    (click)="enableSemanticSearch()">
+    No results. Try <strong>search by meaning</strong>
+  </button>
 </div>
 
 <div id="spacer"></div>
