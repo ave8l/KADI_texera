@@ -133,7 +133,7 @@
       "customDisplayName": "Busiest first",
       "dynamicInputPorts": false,
       "dynamicOutputPorts": false,
-      "viewResult": false
+      "viewResult": true
     },
     {
       "operatorID": "BarChart-operator-3e1f334f-9704-4205-973c-3b97170337d1",
@@ -166,7 +166,7 @@
       "customDisplayName": "Tickets by department",
       "dynamicInputPorts": false,
       "dynamicOutputPorts": false,
-      "viewResult": false
+      "viewResult": true
     },
     {
       "operatorID": "PieChart-operator-54d596c2-a856-4e76-9c84-054fd44778f6",
@@ -197,7 +197,7 @@
       "customDisplayName": "Share of tickets",
       "dynamicInputPorts": false,
       "dynamicOutputPorts": false,
-      "viewResult": false
+      "viewResult": true
     }
   ],
   "operatorPositions": {
