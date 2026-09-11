@@ -82,6 +82,9 @@ export class OperatorMenuComponent {
   // The operator the canvas has selected, and what is worth adding after it.
   public selectedOperatorName = "";
   public nextSuggestions: OperatorSchema[] = [];
+  // Shown instead of the list when an operator ends the workflow, so an empty
+  // panel is never mistaken for a broken one.
+  public nextStepNote = "";
   private selectedOperatorId: string | null = null;
 
   // Every operator the palette can offer, kept for the semantic ranker.
@@ -158,6 +161,7 @@ export class OperatorMenuComponent {
       this.selectedOperatorId = null;
       this.selectedOperatorName = "";
       this.nextSuggestions = [];
+      this.nextStepNote = "";
       this.changeDetectorRef.detectChanges();
       return;
     }
@@ -168,18 +172,26 @@ export class OperatorMenuComponent {
     if (schema === undefined) {
       this.selectedOperatorId = null;
       this.nextSuggestions = [];
+      this.nextStepNote = "";
       return;
     }
 
     this.selectedOperatorId = operatorId;
     this.selectedOperatorName = operator.customDisplayName ?? schema.additionalMetadata.userFriendlyName;
 
-    this.nextOperatorService.suggestionsFor(schema.additionalMetadata.operatorGroupName).then(suggestions => {
+    this.nextOperatorService.suggestionsFor(schema.additionalMetadata.operatorGroupName).then(result => {
       // The selection may have moved on while the rules were loading.
-      if (this.selectedOperatorId === operatorId) {
-        this.nextSuggestions = suggestions;
-        this.changeDetectorRef.detectChanges();
+      if (this.selectedOperatorId !== operatorId) {
+        return;
       }
+      this.nextSuggestions = result.suggestions;
+      this.nextStepNote =
+        result.suggestions.length > 0
+          ? ""
+          : result.known
+            ? "Nothing usually follows this — it ends the workflow."
+            : "No suggestions for this group yet.";
+      this.changeDetectorRef.detectChanges();
     });
   }
 

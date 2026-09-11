@@ -31,15 +31,22 @@ export class NextOperatorService {
   ) {}
 
   /**
-   * The operators worth adding after `afterGroup`, as schemas ready to place.
-   * Empty for a group that ends a workflow, and empty until the table loads.
+   * What is worth adding after an operator of `afterGroup`.
+   *
+   * `known` separates the two reasons the list can be empty: a group the table
+   * deliberately ends the workflow at, and a group nobody has written a rule
+   * for yet. The palette says something different for each, because an empty
+   * panel reads as a broken one.
    */
-  public async suggestionsFor(afterGroup: string): Promise<OperatorSchema[]> {
+  public async suggestionsFor(afterGroup: string): Promise<{ suggestions: OperatorSchema[]; known: boolean }> {
     await this.ready();
-    const names = this.rules?.[afterGroup] ?? [];
-    return names
-      .map(name => this.schemaByName(name))
-      .filter((schema): schema is OperatorSchema => schema !== undefined);
+    const names = this.rules?.[afterGroup];
+    return {
+      known: names !== undefined,
+      suggestions: (names ?? [])
+        .map(name => this.schemaByName(name))
+        .filter((schema): schema is OperatorSchema => schema !== undefined),
+    };
   }
 
   private ready(): Promise<void> {

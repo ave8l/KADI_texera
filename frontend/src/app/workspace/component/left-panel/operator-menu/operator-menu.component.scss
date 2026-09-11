@@ -170,6 +170,12 @@ $semantic-toggle-height: 24px;
     }
   }
 
+  &__note {
+    font-size: 11px;
+    font-style: italic;
+    color: rgba(0, 0, 0, 0.4);
+  }
+
   &__plus {
     display: inline-block;
     width: 12px;
