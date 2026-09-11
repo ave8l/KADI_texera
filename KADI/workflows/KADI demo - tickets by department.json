@@ -1,0 +1,290 @@
+{
+  "operators": [
+    {
+      "operatorID": "TextInput-operator-0fb5b953-b78c-4c3f-9826-bb5e6305a106",
+      "operatorType": "TextInput",
+      "operatorVersion": "N/A",
+      "operatorProperties": {
+        "textInput": "sales\nsupport\nsales\nengineering\nsupport\nsales\nengineering\nunknown\nsupport\nsales\nengineering\nunknown\nsales",
+        "attributeType": "string",
+        "attributeName": "department"
+      },
+      "inputPorts": [],
+      "outputPorts": [
+        {
+          "portID": "output-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "showAdvanced": false,
+      "isDisabled": false,
+      "customDisplayName": "Ticket departments",
+      "dynamicInputPorts": false,
+      "dynamicOutputPorts": false,
+      "viewResult": false
+    },
+    {
+      "operatorID": "Filter-operator-37fefa20-f7f1-4d16-8480-defdf1fb3776",
+      "operatorType": "Filter",
+      "operatorVersion": "N/A",
+      "operatorProperties": {
+        "predicates": [
+          {
+            "attribute": "department",
+            "condition": "!=",
+            "value": "unknown"
+          }
+        ]
+      },
+      "inputPorts": [
+        {
+          "portID": "input-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "portID": "output-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "showAdvanced": false,
+      "isDisabled": false,
+      "customDisplayName": "Drop unknown",
+      "dynamicInputPorts": false,
+      "dynamicOutputPorts": false,
+      "viewResult": false
+    },
+    {
+      "operatorID": "Aggregate-operator-ea3a6d41-0b7f-4f69-9468-7ad87c706114",
+      "operatorType": "Aggregate",
+      "operatorVersion": "N/A",
+      "operatorProperties": {
+        "aggregations": [
+          {
+            "aggFunction": "count",
+            "attribute": "department",
+            "result attribute": "tickets"
+          }
+        ],
+        "groupByKeys": [
+          "department"
+        ]
+      },
+      "inputPorts": [
+        {
+          "portID": "input-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "portID": "output-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "showAdvanced": false,
+      "isDisabled": false,
+      "customDisplayName": "Count per department",
+      "dynamicInputPorts": false,
+      "dynamicOutputPorts": false,
+      "viewResult": false
+    },
+    {
+      "operatorID": "Sort-operator-c6ed1961-9794-4c9a-9183-d0e10dbeeba6",
+      "operatorType": "Sort",
+      "operatorVersion": "N/A",
+      "operatorProperties": {
+        "attributes": [
+          {
+            "attribute": "tickets",
+            "sortPreference": "DESC"
+          }
+        ]
+      },
+      "inputPorts": [
+        {
+          "portID": "input-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "portID": "output-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "showAdvanced": false,
+      "isDisabled": false,
+      "customDisplayName": "Busiest first",
+      "dynamicInputPorts": false,
+      "dynamicOutputPorts": false,
+      "viewResult": false
+    },
+    {
+      "operatorID": "BarChart-operator-3e1f334f-9704-4205-973c-3b97170337d1",
+      "operatorType": "BarChart",
+      "operatorVersion": "N/A",
+      "operatorProperties": {
+        "fields": "department",
+        "value": "tickets",
+        "horizontalOrientation": false,
+        "categoryColumn": "No Selection"
+      },
+      "inputPorts": [
+        {
+          "portID": "input-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "portID": "output-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "showAdvanced": false,
+      "isDisabled": false,
+      "customDisplayName": "Tickets by department",
+      "dynamicInputPorts": false,
+      "dynamicOutputPorts": false,
+      "viewResult": false
+    },
+    {
+      "operatorID": "PieChart-operator-54d596c2-a856-4e76-9c84-054fd44778f6",
+      "operatorType": "PieChart",
+      "operatorVersion": "N/A",
+      "operatorProperties": {
+        "value": "tickets",
+        "name": "department"
+      },
+      "inputPorts": [
+        {
+          "portID": "input-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "portID": "output-0",
+          "displayName": "",
+          "allowMultiInputs": false,
+          "isDynamicPort": false
+        }
+      ],
+      "showAdvanced": false,
+      "isDisabled": false,
+      "customDisplayName": "Share of tickets",
+      "dynamicInputPorts": false,
+      "dynamicOutputPorts": false,
+      "viewResult": false
+    }
+  ],
+  "operatorPositions": {
+    "TextInput-operator-0fb5b953-b78c-4c3f-9826-bb5e6305a106": {
+      "x": -60,
+      "y": 120
+    },
+    "Filter-operator-37fefa20-f7f1-4d16-8480-defdf1fb3776": {
+      "x": 160,
+      "y": 120
+    },
+    "Aggregate-operator-ea3a6d41-0b7f-4f69-9468-7ad87c706114": {
+      "x": 380,
+      "y": 120
+    },
+    "Sort-operator-c6ed1961-9794-4c9a-9183-d0e10dbeeba6": {
+      "x": 600,
+      "y": 40
+    },
+    "BarChart-operator-3e1f334f-9704-4205-973c-3b97170337d1": {
+      "x": 820,
+      "y": 40
+    },
+    "PieChart-operator-54d596c2-a856-4e76-9c84-054fd44778f6": {
+      "x": 600,
+      "y": 230
+    }
+  },
+  "links": [
+    {
+      "linkID": "a734ae4e-a3dc-418d-90d0-e3bbb9b5cc80",
+      "source": {
+        "operatorID": "TextInput-operator-0fb5b953-b78c-4c3f-9826-bb5e6305a106",
+        "portID": "output-0"
+      },
+      "target": {
+        "operatorID": "Filter-operator-37fefa20-f7f1-4d16-8480-defdf1fb3776",
+        "portID": "input-0"
+      }
+    },
+    {
+      "linkID": "e6794566-fe75-41cf-84a7-e3a4075984cd",
+      "source": {
+        "operatorID": "Filter-operator-37fefa20-f7f1-4d16-8480-defdf1fb3776",
+        "portID": "output-0"
+      },
+      "target": {
+        "operatorID": "Aggregate-operator-ea3a6d41-0b7f-4f69-9468-7ad87c706114",
+        "portID": "input-0"
+      }
+    },
+    {
+      "linkID": "547ffa5d-b2d6-4d9e-989b-228c6543a4cf",
+      "source": {
+        "operatorID": "Aggregate-operator-ea3a6d41-0b7f-4f69-9468-7ad87c706114",
+        "portID": "output-0"
+      },
+      "target": {
+        "operatorID": "Sort-operator-c6ed1961-9794-4c9a-9183-d0e10dbeeba6",
+        "portID": "input-0"
+      }
+    },
+    {
+      "linkID": "b6e1eb3e-86e5-4cc0-925c-6715e9ce7219",
+      "source": {
+        "operatorID": "Sort-operator-c6ed1961-9794-4c9a-9183-d0e10dbeeba6",
+        "portID": "output-0"
+      },
+      "target": {
+        "operatorID": "BarChart-operator-3e1f334f-9704-4205-973c-3b97170337d1",
+        "portID": "input-0"
+      }
+    },
+    {
+      "linkID": "fef09449-d052-469c-bb23-1a2b615db696",
+      "source": {
+        "operatorID": "Aggregate-operator-ea3a6d41-0b7f-4f69-9468-7ad87c706114",
+        "portID": "output-0"
+      },
+      "target": {
+        "operatorID": "PieChart-operator-54d596c2-a856-4e76-9c84-054fd44778f6",
+        "portID": "input-0"
+      }
+    }
+  ],
+  "commentBoxes": [],
+  "settings": {
+    "dataTransferBatchSize": 400
+  }
+}
