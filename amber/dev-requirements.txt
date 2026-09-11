@@ -1,0 +1,45 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Test- and dev-only Python dependencies. Installed in CI after the
+# LICENSE-binary snapshot is taken, so packages here never appear in
+# pip-licenses output and never need to be tracked in LICENSE-binary
+# / NOTICE-binary. Not installed by packaging.
+
+# pytest test runner and plugins.
+pytest==9.0.3
+pytest-reraise==2.1.2
+pytest-timeout==2.4.0
+
+# Coverage instrumentation for pytest; emits coverage.xml consumed by
+# Codecov's Phase 1 upload.
+pytest-cov==7.1.0
+
+# Linter/formatter for amber's Python sources; run by CI's "Lint with
+# Ruff" step and bin/fix-format.sh.
+ruff==0.14.7
+
+# protoc plugin for bin/python-proto-gen.sh; runtime needs only the
+# base `betterproto` in requirements.txt.
+betterproto[compiler]==2.0.0b7
+
+# Required by `bin/local-dev.sh -i` (the interactive Textual TUI).
+textual==8.2.8
+
+# Reads bin/k8s/values.yaml in bin/k8s/tests/test_helm_values.sh. That check fails
+# rather than skipping when this is missing, so the suite cannot go green by accident.
+PyYAML==6.0.2

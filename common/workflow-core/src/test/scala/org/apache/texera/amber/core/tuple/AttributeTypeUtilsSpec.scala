@@ -1,0 +1,705 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.texera.amber.core.tuple
+
+import org.apache.texera.amber.core.tuple.AttributeType._
+import org.apache.texera.amber.core.tuple.AttributeTypeUtils.{
+  AttributeTypeException,
+  SchemaCasting,
+  add,
+  compare,
+  inferField,
+  inferSchemaFromRows,
+  maxValue,
+  minValue,
+  parseField,
+  parseFields,
+  tupleCasting,
+  zeroValue
+}
+import org.scalatest.funsuite.AnyFunSuite
+
+import java.sql.Timestamp
+import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
+
+class AttributeTypeUtilsSpec extends AnyFunSuite {
+
+  // Unit Test for Infer Schema
+
+  test("type should get inferred correctly individually") {
+
+    assert(inferField(" 1     \n\n") == INTEGER)
+    assert(inferField(" 1.1\t") == DOUBLE)
+    assert(inferField("1,111.1 ") == STRING)
+    assert(inferField("k2068-10-29T18:43:15.000Z") == STRING)
+    assert(inferField(" 12321321312321312312321321 ") == DOUBLE)
+    assert(inferField(" 123,123,123,123,123,123,123.11") == STRING)
+    assert(inferField(" 00\t") == INTEGER)
+    assert(inferField("\t-.2 ") == DOUBLE)
+    assert(inferField("\n False ") == BOOLEAN)
+    assert(inferField("07/10/96 4:5 PM, PDT") == TIMESTAMP)
+    assert(inferField("02/2/2020") == TIMESTAMP)
+    assert(inferField("\n\n02/2/23    ") == TIMESTAMP)
+    assert(inferField("   2023年8月7日   ") == TIMESTAMP)
+    assert(
+      inferField("2020-12-31T23:25:59.999Z") == TIMESTAMP
+    ) // ISO format with milliseconds and UTC
+    assert(inferField("2020-12-31T11:59:59+01:00") == TIMESTAMP) // ISO format with timezone offset
+    assert(
+      inferField("2020-12-31T11:59:59") == TIMESTAMP
+    ) // ISO format without milliseconds and timezone
+    assert(
+      inferField("31/12/2020 23:59:59") == TIMESTAMP
+    ) // European datetime format with slash separators
+    assert(
+      inferField("12/31/2020 11:59:59") == TIMESTAMP
+    ) // US datetime format with slash separators
+    assert(inferField("2020-12-31") == TIMESTAMP) // Common date format
+    assert(inferField("31-Dec-2020") == TIMESTAMP) // Date format with three-letter month
+    assert(
+      inferField("Wednesday, 31-Dec-20 23:59:59 GMT") == TIMESTAMP
+    ) // Verbose format with day and timezone
+    assert(
+      inferField("1 Jan 2020 05:30:00 GMT") == TIMESTAMP
+    ) // Another verbose format with timezone
+    assert(inferField("15-Aug-2020 20:20:20") == TIMESTAMP) // Day-Month-Year format with time
+    assert(inferField("2020年12月31日 23:59") == TIMESTAMP) // East Asian date format with time
+    assert(inferField("2020/12/31 23:59") == TIMESTAMP) // Alternate slash format with time
+
+  }
+
+  test("types should get inferred correctly with one row") {
+    val row: Array[Any] =
+      Array("string", "1", "2020-01-02T00:05:56.000Z", "1.3", "213214124124124", "true")
+    val rows: Iterator[Array[Any]] = Iterator(row)
+    val attributeTypes = inferSchemaFromRows(rows)
+    assert(attributeTypes(0) == STRING)
+    assert(attributeTypes(1) == INTEGER)
+    assert(attributeTypes(2) == TIMESTAMP)
+    assert(attributeTypes(3) == DOUBLE)
+    assert(attributeTypes(4) == LONG)
+    assert(attributeTypes(5) == BOOLEAN)
+
+  }
+
+  test("types should get inferred correctly with multiple rows") {
+
+    val rows: Iterator[Array[Any]] = Iterator(
+      Array("string", "1 ", "2020-01-02T00:05:56.000Z", "1.3 ", "9223372036854775807", "true"),
+      Array("1932-09-06", "0 ", "1932-09-06T03:47:19Z", "9223.23", "-1", "false "),
+      Array("", "-1", "1979-08-12T10:18:49Z", "-.11", "-9223372036854775808 ", "0"),
+      Array("123,456,789", " -0", " 2023-6-7 8:9:38", " -9.32", "0", "1"),
+      Array("92233720368547758072", "2147483647", "2023-06-27T08:09:38Z", ".1", "1", " TRUE"),
+      Array("\n", "-2147483648", "2068-10-29T18:43:15.000Z ", " 100.00 ", "03685477", "FALSE")
+    )
+    val attributeTypes = inferSchemaFromRows(rows)
+    assert(attributeTypes(0) == STRING)
+    assert(attributeTypes(1) == INTEGER)
+    assert(attributeTypes(2) == TIMESTAMP)
+    assert(attributeTypes(3) == DOUBLE)
+    assert(attributeTypes(4) == LONG)
+    assert(attributeTypes(5) == BOOLEAN)
+
+  }
+
+  test("parseField correctly parses to INTEGER") {
+    assert(parseField("123", AttributeType.INTEGER) == 123)
+    assert(parseField("1,234", AttributeType.INTEGER, force = true) == 1234)
+    assert(parseField(456, AttributeType.INTEGER) == 456)
+    assert(parseField(123.45, AttributeType.INTEGER) == 123)
+    assert(parseField(true, AttributeType.INTEGER) == 1)
+    assert(parseField(false, AttributeType.INTEGER) == 0)
+    assertThrows[AttributeTypeException] {
+      parseField("invalid", AttributeType.INTEGER)
+    }
+    assertThrows[AttributeTypeException] {
+      parseField("1,234", AttributeType.INTEGER)
+    }
+  }
+
+  test("parseField correctly parses to LONG") {
+    assert(parseField("1234567890", AttributeType.LONG) == 1234567890L)
+    assert(parseField("1,234,567", AttributeType.LONG, force = true) == 1234567L)
+    assert(parseField(12345L, AttributeType.LONG) == 12345L)
+    assert(parseField(123.45, AttributeType.LONG) == 123L)
+    assert(parseField(true, AttributeType.LONG) == 1L)
+    assertThrows[AttributeTypeException] {
+      parseField("invalid", AttributeType.LONG)
+    }
+    assertThrows[AttributeTypeException] {
+      parseField("1,234,567", AttributeType.LONG)
+    }
+  }
+
+  test("parseField correctly parses to DOUBLE") {
+    assert(parseField("123.45", AttributeType.DOUBLE) == 123.45)
+    assert(parseField(12345, AttributeType.DOUBLE) == 12345.0)
+    assert(parseField(12345L, AttributeType.DOUBLE) == 12345.0)
+    assert(parseField(true, AttributeType.DOUBLE) == 1.0)
+    assertThrows[AttributeTypeException] {
+      parseField("invalid", AttributeType.DOUBLE)
+    }
+  }
+
+  test("parseField correctly parses to BOOLEAN") {
+    assert(parseField("true", AttributeType.BOOLEAN) == true)
+    assert(parseField("True", AttributeType.BOOLEAN) == true)
+    assert(parseField("TRUE", AttributeType.BOOLEAN) == true)
+    assert(parseField("false", AttributeType.BOOLEAN) == false)
+    assert(parseField("False", AttributeType.BOOLEAN) == false)
+    assert(parseField("FALSE", AttributeType.BOOLEAN) == false)
+    assert(parseField("1", AttributeType.BOOLEAN) == true)
+    assert(parseField("0", AttributeType.BOOLEAN) == false)
+    assert(parseField(1, AttributeType.BOOLEAN) == true)
+    assert(parseField(0, AttributeType.BOOLEAN) == false)
+    assertThrows[AttributeTypeException] {
+      parseField("invalid", AttributeType.BOOLEAN)
+    }
+  }
+
+  test("parseField correctly parses to TIMESTAMP") {
+    val timestamp =
+      parseField("2023-11-13T10:15:30", AttributeType.TIMESTAMP).asInstanceOf[java.sql.Timestamp]
+    assert(timestamp.toString == "2023-11-13 10:15:30.0")
+
+    assert(
+      parseField(1699820130000L, AttributeType.TIMESTAMP)
+        .asInstanceOf[java.sql.Timestamp]
+        .getTime == 1699820130000L
+    )
+
+    val localDateTime = LocalDateTime.of(2023, 11, 13, 10, 15, 30)
+    val timestampFromLocalDateTime =
+      parseField(localDateTime, AttributeType.TIMESTAMP).asInstanceOf[Timestamp]
+    assert(timestampFromLocalDateTime == Timestamp.valueOf(localDateTime))
+
+    val instant = Instant.parse("2023-11-13T10:15:30Z")
+    val timestampFromInstant = parseField(instant, AttributeType.TIMESTAMP).asInstanceOf[Timestamp]
+    assert(timestampFromInstant == Timestamp.from(instant))
+
+    val offsetDateTime = OffsetDateTime.parse("2023-11-13T12:15:30+02:00")
+    val timestampFromOffsetDateTime =
+      parseField(offsetDateTime, AttributeType.TIMESTAMP).asInstanceOf[Timestamp]
+    assert(timestampFromOffsetDateTime == Timestamp.from(offsetDateTime.toInstant))
+
+    val zonedDateTime =
+      ZonedDateTime.of(2023, 11, 13, 2, 15, 30, 0, ZoneId.of("America/Los_Angeles"))
+    val timestampFromZonedDateTime =
+      parseField(zonedDateTime, AttributeType.TIMESTAMP).asInstanceOf[Timestamp]
+    assert(timestampFromZonedDateTime == Timestamp.from(zonedDateTime.toInstant))
+
+    val localDate = LocalDate.of(2023, 11, 13)
+    val timestampFromLocalDate =
+      parseField(localDate, AttributeType.TIMESTAMP).asInstanceOf[Timestamp]
+    assert(timestampFromLocalDate == Timestamp.valueOf(localDate.atStartOfDay()))
+
+    val utilDate = new java.util.Date(1699820130000L)
+    val timestampFromDate = parseField(utilDate, AttributeType.TIMESTAMP).asInstanceOf[Timestamp]
+    assert(timestampFromDate.getTime == 1699820130000L)
+
+    assertThrows[AttributeTypeException] {
+      parseField("invalid", AttributeType.TIMESTAMP)
+    }
+    assertThrows[AttributeTypeException] {
+      parseField(123.45, AttributeType.TIMESTAMP)
+    }
+  }
+
+  test("parseField correctly parses to STRING") {
+    assert(parseField(123, AttributeType.STRING) == "123")
+    assert(parseField(123.45, AttributeType.STRING) == "123.45")
+    assert(parseField(true, AttributeType.STRING) == "true")
+  }
+
+  test("parseField returns original value for BINARY and ANY") {
+    val binaryData = Array[Byte](1, 2, 3)
+    assert(parseField(binaryData, AttributeType.BINARY) == binaryData)
+    assert(parseField("anything", AttributeType.ANY) == "anything")
+  }
+
+  test("parseField correctly parses to LARGE_BINARY") {
+    // Valid S3 URI strings are converted to LargeBinary
+    val pointer1 = parseField("s3://bucket/path/to/object", AttributeType.LARGE_BINARY)
+      .asInstanceOf[LargeBinary]
+    assert(pointer1.getUri == "s3://bucket/path/to/object")
+    assert(pointer1.getBucketName == "bucket")
+    assert(pointer1.getObjectKey == "path/to/object")
+
+    // Null input returns null
+    assert(parseField(null, AttributeType.LARGE_BINARY) == null)
+  }
+
+  test("LARGE_BINARY type is preserved but never inferred from data") {
+    // LARGE_BINARY remains LARGE_BINARY when passed as typeSoFar
+    assert(inferField(AttributeType.LARGE_BINARY, "any-value") == AttributeType.LARGE_BINARY)
+    assert(inferField(AttributeType.LARGE_BINARY, null) == AttributeType.LARGE_BINARY)
+
+    // String data is inferred as STRING, never LARGE_BINARY
+    assert(inferField("s3://bucket/path") == AttributeType.STRING)
+  }
+
+  test("compare correctly handles null values for different attribute types") {
+    assert(compare(null, null, INTEGER) == 0)
+    assert(compare(null, 10, INTEGER) < 0)
+    assert(compare(10, null, INTEGER) > 0)
+  }
+
+  test("compare correctly orders numeric, boolean, timestamp, string and binary values") {
+    assert(compare(1, 2, INTEGER) < 0)
+    assert(compare(2, 1, INTEGER) > 0)
+    assert(compare(5, 5, INTEGER) == 0)
+
+    assert(compare(false, true, BOOLEAN) < 0)
+    assert(compare(true, false, BOOLEAN) > 0)
+    assert(compare(true, true, BOOLEAN) == 0)
+
+    val earlierTimestamp = new java.sql.Timestamp(1000L)
+    val laterTimestamp = new java.sql.Timestamp(2000L)
+    assert(compare(earlierTimestamp, laterTimestamp, TIMESTAMP) < 0)
+    assert(compare(laterTimestamp, earlierTimestamp, TIMESTAMP) > 0)
+
+    assert(compare("apple", "banana", STRING) < 0)
+    assert(compare("banana", "apple", STRING) > 0)
+    assert(compare("same", "same", STRING) == 0)
+
+    val firstBytes = Array[Byte](0, 1, 2)
+    val secondBytes = Array[Byte](0, 2, 0)
+    assert(compare(firstBytes, secondBytes, BINARY) < 0)
+  }
+
+  test("add correctly handles null values as identity for numeric types") {
+    val integerZeroFromAdd = add(null, null, INTEGER).asInstanceOf[Int]
+    assert(integerZeroFromAdd == 0)
+
+    val rightOnlyResult =
+      add(null, java.lang.Integer.valueOf(5), INTEGER).asInstanceOf[Int]
+    assert(rightOnlyResult == 5)
+
+    val leftOnlyResult =
+      add(java.lang.Integer.valueOf(7), null, INTEGER).asInstanceOf[Int]
+    assert(leftOnlyResult == 7)
+  }
+
+  test("add correctly adds integer, long, double and timestamp values") {
+    val integerSum =
+      add(java.lang.Integer.valueOf(3), java.lang.Integer.valueOf(4), INTEGER)
+        .asInstanceOf[Int]
+    assert(integerSum == 7)
+
+    val longSum =
+      add(java.lang.Long.valueOf(10L), java.lang.Long.valueOf(5L), LONG)
+        .asInstanceOf[Long]
+    assert(longSum == 15L)
+
+    val doubleSum =
+      add(java.lang.Double.valueOf(1.5), java.lang.Double.valueOf(2.5), DOUBLE)
+        .asInstanceOf[Double]
+    assert(doubleSum == 4.0)
+
+    val firstTimestamp = new java.sql.Timestamp(1000L)
+    val secondTimestamp = new java.sql.Timestamp(2500L)
+    val timestampSum =
+      add(firstTimestamp, secondTimestamp, TIMESTAMP).asInstanceOf[java.sql.Timestamp]
+    assert(timestampSum.getTime == 3500L)
+  }
+
+  test("zeroValue returns correct numeric and timestamp identity values") {
+    val integerZero = zeroValue(INTEGER).asInstanceOf[Int]
+    val longZero = zeroValue(LONG).asInstanceOf[Long]
+    val doubleZero = zeroValue(DOUBLE).asInstanceOf[Double]
+    val timestampZero = zeroValue(TIMESTAMP).asInstanceOf[java.sql.Timestamp]
+
+    assert(integerZero == 0)
+    assert(longZero == 0L)
+    assert(doubleZero == 0.0d)
+    assert(timestampZero.getTime == 0L)
+  }
+
+  test("zeroValue returns empty binary array and fails for unsupported types") {
+    val binaryZero = zeroValue(BINARY).asInstanceOf[Array[Byte]]
+    assert(binaryZero.isEmpty)
+
+    assertThrows[UnsupportedOperationException] {
+      zeroValue(STRING)
+    }
+  }
+
+  test("maxValue returns correct maximum numeric bounds") {
+    val integerMax = maxValue(INTEGER).asInstanceOf[Int]
+    val longMax = maxValue(LONG).asInstanceOf[Long]
+    val doubleMax = maxValue(DOUBLE).asInstanceOf[Double]
+
+    assert(integerMax == Int.MaxValue)
+    assert(longMax == Long.MaxValue)
+    assert(doubleMax == Double.MaxValue)
+  }
+
+  test("maxValue returns maximum timestamp and fails for unsupported types") {
+    val timestampMax = maxValue(TIMESTAMP).asInstanceOf[java.sql.Timestamp]
+    assert(timestampMax.getTime == Long.MaxValue)
+
+    assertThrows[UnsupportedOperationException] {
+      maxValue(BOOLEAN)
+    }
+  }
+
+  test("minValue returns correct minimum numeric bounds") {
+    val integerMin = minValue(INTEGER).asInstanceOf[Int]
+    val longMin = minValue(LONG).asInstanceOf[Long]
+    val doubleMin = minValue(DOUBLE).asInstanceOf[Double]
+
+    assert(integerMin == Int.MinValue)
+    assert(longMin == Long.MinValue)
+    assert(doubleMin == java.lang.Double.NEGATIVE_INFINITY)
+  }
+
+  test("minValue returns timestamp epoch and empty binary array, and fails for unsupported types") {
+    val timestampMin = minValue(TIMESTAMP).asInstanceOf[java.sql.Timestamp]
+    val binaryMin = minValue(BINARY).asInstanceOf[Array[Byte]]
+
+    assert(timestampMin.getTime == 0L)
+
+    assert(binaryMin.isEmpty)
+
+    assertThrows[UnsupportedOperationException] {
+      minValue(STRING)
+    }
+  }
+
+  test("SchemaCasting casts the named attribute and retains the others") {
+    val schema = Schema(
+      List(new Attribute("a", STRING), new Attribute("b", STRING))
+    )
+    val casted = SchemaCasting(schema, "b", INTEGER)
+    assert(
+      casted.getAttributes == List(new Attribute("a", STRING), new Attribute("b", INTEGER))
+    )
+  }
+
+  test("SchemaCasting with an ANY result type retains the schema unchanged") {
+    val schema = Schema(
+      List(new Attribute("a", STRING), new Attribute("b", STRING))
+    )
+    assert(SchemaCasting(schema, "b", ANY) == schema)
+  }
+
+  test("tupleCasting parses targeted columns with forced number parsing") {
+    val schema = Schema(
+      List(new Attribute("a", STRING), new Attribute("b", STRING))
+    )
+    val tuple = Tuple.builder(schema).addSequentially(Array[Any]("1,234", "note")).build()
+    val result = tupleCasting(tuple, Map("a" -> INTEGER))
+    assert(result.getFields.sameElements(Array[Any](1234, "note")))
+  }
+
+  test("parseFields parses by attribute-type array and by schema") {
+    assert(
+      parseFields(Array[Any]("1", "2.5", "true"), Array(INTEGER, DOUBLE, BOOLEAN))
+        .sameElements(Array[Any](1, 2.5, true))
+    )
+    assert(
+      parseFields(Array[Any]("7"), Schema(List(new Attribute("x", INTEGER))))
+        .sameElements(Array[Any](7))
+    )
+    assertThrows[AttributeTypeException] {
+      parseFields(Array[Any]("abc"), Array(INTEGER))
+    }
+  }
+
+  test("inferField with a null value keeps the currently inferred type") {
+    assert(inferField(INTEGER, null) == INTEGER)
+    assert(inferField(LONG, null) == LONG)
+    assert(inferField(TIMESTAMP, null) == TIMESTAMP)
+    assert(inferField(DOUBLE, null) == DOUBLE)
+    assert(inferField(BOOLEAN, null) == BOOLEAN)
+  }
+
+  test("inferField falls back to STRING for BINARY and ANY bases") {
+    assert(inferField(BINARY, "anything") == STRING)
+    assert(inferField(ANY, "anything") == STRING)
+  }
+
+  test("compare orders LONG and DOUBLE values") {
+    assert(compare(1L, 2L, LONG) < 0)
+    assert(compare(2L, 1L, LONG) > 0)
+    assert(compare(5L, 5L, LONG) == 0)
+    assert(compare(1.5d, 2.5d, DOUBLE) < 0)
+    assert(compare(2.5d, 1.5d, DOUBLE) > 0)
+    assert(compare(3.14d, 3.14d, DOUBLE) == 0)
+  }
+
+  test("compare rejects unsupported types and orders binary unsigned") {
+    val ex = intercept[UnsupportedOperationException] {
+      compare("a", "b", LARGE_BINARY)
+    }
+    // the interpolated type renders via its lowercase wire name
+    assert(ex.getMessage == "Unsupported attribute type for compare: large_binary")
+    assert(compare(Array[Byte](0, 2, 0), Array[Byte](0, 1, 2), BINARY) > 0)
+    assert(compare(Array[Byte](1, 2), Array[Byte](1, 2), BINARY) == 0)
+    // bytes compare unsigned: 0xFF (-1) sorts above 0x01
+    assert(compare(Array[Byte](-1), Array[Byte](1), BINARY) > 0)
+  }
+
+  test("add rejects unsupported types and zero-fills all-null binary operands") {
+    val ex = intercept[UnsupportedOperationException] {
+      add("a", "b", STRING)
+    }
+    assert(ex.getMessage == "Unsupported attribute type for addition: string")
+    assert(add(null, null, BINARY).asInstanceOf[Array[Byte]].isEmpty)
+  }
+
+  test("parseField with force enabled raises AttributeTypeException on unparsable numbers") {
+    val intEx = intercept[AttributeTypeException] {
+      parseField("abc", INTEGER, force = true)
+    }
+    assert(intEx.getMessage == "Failed to parse type java.lang.String to Integer: abc")
+    val longEx = intercept[AttributeTypeException] {
+      parseField("abc", LONG, force = true)
+    }
+    assert(longEx.getMessage == "Failed to parse type java.lang.String to Long: abc")
+  }
+
+  test("parseField returns null for every target type when the field is null") {
+    // The null short-circuit runs before any per-type parsing.
+    Seq(INTEGER, LONG, DOUBLE, BOOLEAN, TIMESTAMP, STRING, BINARY, LARGE_BINARY, ANY).foreach {
+      attributeType => assert(parseField(null, attributeType) == null)
+    }
+  }
+
+  test("parseField to INTEGER accepts Long input and trims surrounding whitespace") {
+    assert(parseField(java.lang.Long.valueOf(42L), INTEGER) == 42)
+    // A Long beyond Int range is narrowed rather than rejected.
+    assert(parseField(java.lang.Long.valueOf(3000000000L), INTEGER) == 3000000000L.toInt)
+    assert(parseField("  7\t\n", INTEGER) == 7)
+    assert(parseField("  1,234 ", INTEGER, force = true) == 1234)
+  }
+
+  test("parseField to INTEGER rejects types that have no numeric meaning") {
+    // Timestamp / binary fall into the unsupported branch and surface as AttributeTypeException.
+    val timestampEx = intercept[AttributeTypeException] {
+      parseField(new Timestamp(0L), INTEGER)
+    }
+    assert(timestampEx.getMessage.startsWith("Failed to parse type java.sql.Timestamp to Integer:"))
+    assert(timestampEx.getCause.isInstanceOf[IllegalArgumentException])
+    assert(
+      timestampEx.getCause.getMessage ==
+        "Unsupported type for parsing to Integer: java.sql.Timestamp"
+    )
+
+    assertThrows[AttributeTypeException](parseField(Array[Byte](1, 2), INTEGER))
+  }
+
+  test("parseField to INTEGER overflows out of range values only under forced parsing") {
+    // Strict parsing rejects a value beyond Int range...
+    assertThrows[AttributeTypeException](parseField("2147483648", INTEGER))
+    // ...while the forced (locale-aware) path parses a Long and narrows it, wrapping around.
+    assert(parseField("2147483648", INTEGER, force = true) == Integer.MIN_VALUE)
+    // Forced parsing also accepts decimals and truncates toward zero, unlike strict parsing.
+    assertThrows[AttributeTypeException](parseField("1.9", INTEGER))
+    assert(parseField("1.9", INTEGER, force = true) == 1)
+    assert(parseField("-1.9", INTEGER, force = true) == -1)
+  }
+
+  test("parseField to LONG accepts Integer and Timestamp inputs") {
+    assert(parseField(java.lang.Integer.valueOf(42), LONG) == 42L)
+    assert(parseField(new Timestamp(1699820130000L), LONG) == 1699820130000L)
+    assert(parseField(false, LONG) == 0L)
+    assert(parseField("  -9223372036854775808 ", LONG) == Long.MinValue)
+    // Forced parsing truncates a decimal instead of failing.
+    assertThrows[AttributeTypeException](parseField("2.9", LONG))
+    assert(parseField("2.9", LONG, force = true) == 2L)
+  }
+
+  test("parseField to LONG rejects binary input") {
+    val ex = intercept[AttributeTypeException] {
+      parseField(Array[Byte](1, 2), LONG)
+    }
+    assert(ex.getCause.isInstanceOf[IllegalArgumentException])
+    assert(ex.getCause.getMessage.startsWith("Unsupported type for parsing to Long:"))
+  }
+
+  test("parseField to DOUBLE keeps special float values and rejects timestamps") {
+    assert(parseField(2.5d, DOUBLE) == 2.5d)
+    assert(parseField("  -0.75 ", DOUBLE) == -0.75d)
+    assert(parseField("NaN", DOUBLE).asInstanceOf[java.lang.Double].isNaN)
+    assert(parseField("Infinity", DOUBLE) == java.lang.Double.POSITIVE_INFINITY)
+    assert(parseField(false, DOUBLE) == 0.0d)
+
+    val ex = intercept[AttributeTypeException] {
+      parseField(new Timestamp(0L), DOUBLE)
+    }
+    assert(ex.getMessage.startsWith("Failed to parse type java.sql.Timestamp to Double:"))
+  }
+
+  test("parseField to BOOLEAN maps non-zero numbers to true") {
+    assert(parseField(2L, BOOLEAN) == true)
+    assert(parseField(0L, BOOLEAN) == false)
+    assert(parseField(0.5d, BOOLEAN) == true)
+    assert(parseField(0.0d, BOOLEAN) == false)
+    assert(parseField(true, BOOLEAN) == true)
+    assert(parseField(-1, BOOLEAN) == true)
+  }
+
+  test("parseField to BOOLEAN treats only the literal 1 as a true numeric string") {
+    // The fallback is `trim.toInt == 1`, so any other integer string parses to false
+    // rather than failing.
+    assert(parseField(" 1 ", BOOLEAN) == true)
+    assert(parseField("2", BOOLEAN) == false)
+    assert(parseField("-1", BOOLEAN) == false)
+    // A non-boolean, non-integer string still fails.
+    assertThrows[AttributeTypeException](parseField("yes", BOOLEAN))
+  }
+
+  test("parseField to BOOLEAN rejects timestamp input") {
+    val ex = intercept[AttributeTypeException] {
+      parseField(new Timestamp(0L), BOOLEAN)
+    }
+    assert(ex.getMessage.startsWith("Failed to parse type java.sql.Timestamp to Boolean:"))
+  }
+
+  test("parseField to TIMESTAMP rejects integers and booleans") {
+    assertThrows[AttributeTypeException](parseField(123, TIMESTAMP))
+    assertThrows[AttributeTypeException](parseField(true, TIMESTAMP))
+    // Blank strings carry no date at all.
+    assertThrows[AttributeTypeException](parseField("   ", TIMESTAMP))
+  }
+
+  test("parseField to LARGE_BINARY rejects a value that is not an s3 URI") {
+    // LargeBinary validates its URI scheme, so the failure is an IllegalArgumentException
+    // raised by the constructor rather than an AttributeTypeException.
+    val ex = intercept[IllegalArgumentException] {
+      parseField("/local/path", LARGE_BINARY)
+    }
+    assert(ex.getMessage == "LargeBinary URI must start with 's3://', got: /local/path")
+    assert(!ex.isInstanceOf[AttributeTypeException])
+  }
+
+  test("parseField to STRING and BINARY passes values through untouched") {
+    val binary = Array[Byte](9, 8, 7)
+    // BINARY is returned by reference, not copied or re-encoded.
+    assert(parseField(binary, BINARY).asInstanceOf[Array[Byte]] eq binary)
+    // STRING relies on toString, including for timestamps.
+    assert(parseField(new Timestamp(0L), STRING) == new Timestamp(0L).toString)
+    assert(parseField(Seq(1, 2), ANY) == Seq(1, 2))
+  }
+
+  test("inferSchemaFromRows returns no types for an empty iterator") {
+    assert(inferSchemaFromRows(Iterator.empty).isEmpty)
+  }
+
+  test("inferSchemaFromRows widens a column only in one direction") {
+    // Once a column has widened to STRING it never narrows back, even if later rows
+    // would parse as integers on their own.
+    val rows: Iterator[Array[Any]] = Iterator(
+      Array[Any]("1", "1"),
+      Array[Any]("not-a-number-or-date", "2"),
+      Array[Any]("3", "3")
+    )
+    val attributeTypes = inferSchemaFromRows(rows)
+    assert(attributeTypes(0) == STRING)
+    assert(attributeTypes(1) == INTEGER)
+  }
+
+  test("inferSchemaFromRows keeps INTEGER for a column of only nulls") {
+    // Null carries no evidence, so the seed type survives.
+    val rows: Iterator[Array[Any]] = Iterator(Array[Any](null), Array[Any](null))
+    assert(inferSchemaFromRows(rows).sameElements(Array(INTEGER)))
+  }
+
+  test("inferField with no prior type falls back through the type ladder") {
+    assert(inferField(null) == INTEGER)
+    assert(inferField("9223372036854775807") == LONG)
+    assert(inferField("not parseable at all") == STRING)
+  }
+
+  test("inferField never narrows a STRING column back to a parseable type") {
+    assert(inferField(STRING, "1") == STRING)
+    assert(inferField(STRING, null) == STRING)
+  }
+
+  test("compare rejects the ANY type") {
+    val ex = intercept[UnsupportedOperationException] {
+      compare(1, 2, ANY)
+    }
+    // ANY renders as the empty string (it is hidden from the JSON schema), so the message
+    // names no type.
+    assert(ex.getMessage == "Unsupported attribute type for compare: ")
+  }
+
+  test("compare orders binary arrays of differing lengths by prefix") {
+    // A prefix sorts before the longer array that extends it.
+    assert(compare(Array[Byte](1, 2), Array[Byte](1, 2, 0), BINARY) < 0)
+    assert(compare(Array.emptyByteArray, Array[Byte](0), BINARY) < 0)
+  }
+
+  test("compare places NaN above every other double") {
+    assert(compare(java.lang.Double.NaN, java.lang.Double.MAX_VALUE, DOUBLE) > 0)
+    assert(compare(java.lang.Double.NEGATIVE_INFINITY, 0.0d, DOUBLE) < 0)
+  }
+
+  test("add with two null operands fails for types that have no zero value") {
+    // The null/null branch delegates to zeroValue, which rejects unsupported types.
+    val ex = intercept[UnsupportedOperationException] {
+      add(null, null, STRING)
+    }
+    assert(ex.getMessage == "Unsupported attribute type for zero value: string")
+  }
+
+  test("add returns the non-null operand unchanged for otherwise unsupported types") {
+    // The identity branches run before the per-type dispatch, so no exception is raised.
+    assert(add("kept", null, STRING) == "kept")
+    assert(add(null, "kept", STRING) == "kept")
+  }
+
+  test("SchemaCasting leaves the schema untouched when no attribute matches") {
+    val schema = Schema(List(new Attribute("a", STRING), new Attribute("b", STRING)))
+    assert(SchemaCasting(schema, "missing", INTEGER) == schema)
+  }
+
+  test("SchemaCasting retains the original type for LARGE_BINARY targets") {
+    // LARGE_BINARY is outside the supported cast list, so the attribute keeps its type.
+    val schema = Schema(List(new Attribute("a", STRING)))
+    assert(SchemaCasting(schema, "a", LARGE_BINARY) == schema)
+  }
+
+  test("SchemaCasting supports every castable target type") {
+    val schema = Schema(List(new Attribute("a", STRING)))
+    Seq(STRING, INTEGER, DOUBLE, LONG, BOOLEAN, TIMESTAMP, BINARY).foreach { target =>
+      assert(SchemaCasting(schema, "a", target).getAttribute("a").getType == target)
+    }
+  }
+
+  test("tupleCasting preserves nulls and leaves unlisted columns alone") {
+    val schema = Schema(List(new Attribute("a", STRING), new Attribute("b", STRING)))
+    val tuple = Tuple.builder(schema).addSequentially(Array[Any](null, "42")).build()
+    val result = tupleCasting(tuple, Map("a" -> INTEGER))
+    assert(result.getFields.sameElements(Array[Any](null, "42")))
+  }
+
+  test("tupleCasting propagates a parse failure for an uncastable value") {
+    val schema = Schema(List(new Attribute("a", STRING)))
+    val tuple = Tuple.builder(schema).addSequentially(Array[Any]("abc")).build()
+    assertThrows[AttributeTypeException](tupleCasting(tuple, Map("a" -> INTEGER)))
+  }
+
+  test("parseFields returns an empty array for empty input") {
+    assert(parseFields(Array.empty[Any], Array.empty[AttributeType]).isEmpty)
+  }
+}

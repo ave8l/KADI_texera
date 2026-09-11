@@ -1,0 +1,362 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import threading
+import typing
+from collections import OrderedDict
+from itertools import chain
+from loguru import logger
+from pyarrow import Table
+from queue import Queue
+from threading import Thread
+from typing import Iterable, Iterator
+from typing import Union
+
+from core.architecture.packaging.input_manager import WorkerPort, Channel
+from core.architecture.sendsemantics.broad_cast_partitioner import (
+    BroadcastPartitioner,
+)
+from core.architecture.sendsemantics.hash_based_shuffle_partitioner import (
+    HashBasedShufflePartitioner,
+)
+from core.architecture.sendsemantics.one_to_one_partitioner import OneToOnePartitioner
+from core.architecture.sendsemantics.partitioner import Partitioner
+from core.architecture.sendsemantics.range_based_shuffle_partitioner import (
+    RangeBasedShufflePartitioner,
+)
+from core.architecture.sendsemantics.round_robin_partitioner import (
+    RoundRobinPartitioner,
+)
+from core.models import Tuple, Schema, StateFrame
+from core.models.payload import DataPayload, DataFrame
+from core.models.state import State
+from core.storage.document_factory import DocumentFactory
+from core.storage.vfs_uri_factory import VFSURIFactory
+from core.storage.runnables.port_storage_writer import (
+    PortStorageWriter,
+    PortStorageWriterElement,
+)
+from core.util import get_one_of
+from core.util.virtual_identity import get_worker_index
+from proto.org.apache.texera.amber.core import (
+    ActorVirtualIdentity,
+    PhysicalLink,
+    PortIdentity,
+    ChannelIdentity,
+)
+from proto.org.apache.texera.amber.engine.architecture.rpc import EmbeddedControlMessage
+from proto.org.apache.texera.amber.engine.architecture.sendsemantics import (
+    HashBasedShufflePartitioning,
+    OneToOnePartitioning,
+    Partitioning,
+    RoundRobinPartitioning,
+    RangeBasedShufflePartitioning,
+    BroadcastPartitioning,
+)
+
+
+class OutputManager:
+    def __init__(self, worker_id: str):
+        self.worker_id = worker_id
+        self._partitioners: OrderedDict[PhysicalLink, Partitioning] = OrderedDict()
+        self._partitioning_to_partitioner: dict[
+            type(Partitioning), type(Partitioner)
+        ] = {
+            OneToOnePartitioning: OneToOnePartitioner,
+            RoundRobinPartitioning: RoundRobinPartitioner,
+            HashBasedShufflePartitioning: HashBasedShufflePartitioner,
+            RangeBasedShufflePartitioning: RangeBasedShufflePartitioner,
+            BroadcastPartitioning: BroadcastPartitioner,
+        }
+        self._ports: typing.Dict[PortIdentity, WorkerPort] = dict()
+        self._channels: typing.Dict[ChannelIdentity, Channel] = dict()
+        self._port_storage_writers: typing.Dict[
+            PortIdentity, typing.Tuple[Queue, PortStorageWriter, Thread]
+        ] = dict()
+
+        self._port_state_writers: typing.Dict[
+            PortIdentity, typing.Tuple[Queue, PortStorageWriter, Thread]
+        ] = dict()
+
+        # Loop-end operators have a single output port; remember its base
+        # URI so `reset_output_storage` can re-provision the iceberg
+        # tables on each loop iteration.
+        self._storage_uri_base: typing.Optional[str] = None
+
+    def is_missing_output_ports(self):
+        """
+        This method is only used for ensuring correct region execution.
+        Some operators may have input port dependency relationships, for
+        which we currently use a two-phase region execution scheme.
+        (See `RegionExecutionManager.scala` for details.)
+        This logic will only be executed when the worker is part of an
+        `executingDependeePortPhase` region-execution phase.
+        We currently assume that in this phase the operator (worker) will
+        not output any data, hence no output ports.
+        However we still need to keep this worker open for the next
+        `executingNonDependeePortPhase` phase.
+        :return: Whether this worker currently does not have any output port.
+        """
+        return not self._ports
+
+    def add_output_port(
+        self,
+        port_id: PortIdentity,
+        schema: Schema,
+        storage_uri_base: typing.Optional[str] = None,
+    ) -> None:
+        if port_id.id is None:
+            port_id.id = 0
+        if port_id.internal is None:
+            port_id.internal = False
+
+        if storage_uri_base is not None:
+            self.set_up_port_storage_writer(port_id, storage_uri_base)
+
+        # each port can only be added and initialized once.
+        if port_id not in self._ports:
+            self._ports[port_id] = WorkerPort(schema)
+
+    def set_up_port_storage_writer(self, port_id: PortIdentity, storage_uri_base: str):
+        """
+        Create a separate thread for saving output tuples of a port
+        to storage in batch, and open a long-lived buffered writer for
+        state materialization on the same port. `storage_uri_base` is the
+        port's base URI; the result and state URIs are derived from it.
+        """
+        # Remember the base URI so `reset_output_storage` can re-provision
+        # the iceberg tables on subsequent loop iterations.
+        self._storage_uri_base = storage_uri_base
+
+        def start_writer(uri: str, name_prefix: str, registry: dict) -> None:
+            document, _ = DocumentFactory.open_document(uri)
+            writer_queue = Queue()
+            writer = PortStorageWriter(
+                buffered_item_writer=document.writer(
+                    str(get_worker_index(self.worker_id))
+                ),
+                queue=writer_queue,
+            )
+            thread = threading.Thread(
+                target=writer.run, daemon=True, name=f"{name_prefix}_{port_id}"
+            )
+            thread.start()
+            registry[port_id] = (writer_queue, writer, thread)
+
+        start_writer(
+            VFSURIFactory.result_uri(storage_uri_base),
+            "port_storage_writer_thread",
+            self._port_storage_writers,
+        )
+        start_writer(
+            VFSURIFactory.state_uri(storage_uri_base),
+            "port_state_writer_thread",
+            self._port_state_writers,
+        )
+
+    def get_port(self, port_id=None) -> WorkerPort:
+        return list(self._ports.values())[0]
+
+    def get_port_ids(self) -> typing.List[PortIdentity]:
+        return list(self._ports.keys())
+
+    def get_output_channel_ids(self) -> typing.List[ChannelIdentity]:
+        return self._channels.keys()
+
+    def save_tuple_to_storage_if_needed(self, tuple_: Tuple, port_id=None) -> None:
+        """
+        Optionally write the tuple to storage if the specified output port
+        is determined by the scheduler to need storage. This method is not blocking
+        because a separate thread is used to flush the tuple to storage in batch.
+        :param tuple_: A tuple produced by the data processor.
+        :param port_id: If not specified, the tuple will be written to all
+        output ports that need storage.
+        :return:
+        """
+        if port_id is None:
+            for writer_queue, _, _ in self._port_storage_writers.values():
+                writer_queue.put(PortStorageWriterElement(data_tuple=tuple_))
+        elif port_id in self._port_storage_writers.keys():
+            self._port_storage_writers[port_id][0].put(
+                PortStorageWriterElement(data_tuple=tuple_)
+            )
+
+    def save_state_to_storage_if_needed(
+        self,
+        state: State,
+        loop_counter: int = 0,
+        loop_start_id: str = "",
+        port_id=None,
+    ) -> None:
+        # When port_id is omitted the same state row is fanned out to
+        # every output port's state table. This mirrors the
+        # broadcast-to-all-workers behavior on the emit side: state is
+        # shared context, not per-key data, so every downstream operator
+        # (and every worker reading the materialization) needs the full
+        # set.
+        element = PortStorageWriterElement(
+            data_tuple=state.to_tuple(loop_counter, loop_start_id)
+        )
+        if port_id is None:
+            for writer_queue, _, _ in self._port_state_writers.values():
+                writer_queue.put(element)
+        elif port_id in self._port_state_writers:
+            self._port_state_writers[port_id][0].put(element)
+
+    def reset_output_storage(self) -> None:
+        """Drop and recreate this operator's result and state tables, then
+        reopen the storage writers against the empty tables.
+
+        Called only for the inner Loop End of a nested loop, once per outer
+        iteration (see the ``MainLoop._process_state_frame`` call site).
+        Truncating live storage is safe because loop workflows run in
+        MATERIALIZED mode, so no reader observes the intermediate truncation.
+
+        Preconditions, checked so misuse fails loudly: the operator has
+        exactly one output port, and ``set_up_port_storage_writer`` has
+        already run for it.
+        """
+        port_ids = self.get_port_ids()
+        if len(port_ids) != 1:
+            raise RuntimeError(
+                f"reset_output_storage expects exactly one output port, "
+                f"but found {len(port_ids)}"
+            )
+        if self._storage_uri_base is None:
+            raise RuntimeError(
+                "reset_output_storage called before the output port's storage "
+                "writer was set up"
+            )
+        port_id = port_ids[0]
+        storage_uri_base = self._storage_uri_base
+        self.close_port_storage_writers()
+        DocumentFactory.create_document(
+            VFSURIFactory.result_uri(storage_uri_base),
+            self._ports[port_id].get_schema(),
+        )
+        DocumentFactory.create_document(
+            VFSURIFactory.state_uri(storage_uri_base), State.SCHEMA
+        )
+        self.set_up_port_storage_writer(port_id, storage_uri_base)
+
+    def close_port_storage_writers(self) -> None:
+        """
+        Flush the buffers of port storage writers and wait for all the
+        writer threads to finish, which indicates the port storage writing
+        are finished.
+        """
+        for registry in (self._port_storage_writers, self._port_state_writers):
+            # Non-blocking stop lets each writer flush its remaining buffer;
+            # the join then waits for the commit to finish.
+            for _, writer, _ in registry.values():
+                writer.stop()
+            for _, _, thread in registry.values():
+                thread.join()
+            # Drop the stopped writers so a later reset/close doesn't act on
+            # stale entries (set_up_port_storage_writer repopulates on reset).
+            registry.clear()
+
+    def add_partitioning(self, tag: PhysicalLink, partitioning: Partitioning) -> None:
+        """
+        Add down stream operator and its transfer policy
+        :param tag:
+        :param partitioning:
+        :return:
+        """
+        the_partitioning = get_one_of(partitioning)
+        logger.debug(f"adding {the_partitioning}")
+        for channel_id in the_partitioning.channels:
+            if channel_id.from_worker_id.name == self.worker_id:
+                # Explicitly set is_control to trigger lazy computation.
+                # If not set, it may be computed at different times,
+                # causing hash inconsistencies.
+                channel_id.is_control = False
+                self._channels[channel_id] = Channel()
+        partitioner = self._partitioning_to_partitioner[type(the_partitioning)]
+        self._partitioners[tag] = (
+            partitioner(the_partitioning)
+            if partitioner != OneToOnePartitioner
+            else partitioner(the_partitioning, self.worker_id)
+        )
+
+    def tuple_to_batch(
+        self, tuple_: Tuple
+    ) -> Iterator[typing.Tuple[ActorVirtualIdentity, DataFrame]]:
+        return chain(
+            *(
+                (
+                    (receiver, self.tuple_to_frame(tuples))
+                    for receiver, tuples in partitioner.add_tuple_to_batch(tuple_)
+                )
+                for partitioner in self._partitioners.values()
+            )
+        )
+
+    def emit_ecm(
+        self, to: ActorVirtualIdentity, ecm: EmbeddedControlMessage
+    ) -> Iterable[Union[DataPayload, EmbeddedControlMessage]]:
+        return chain(
+            *(
+                (
+                    (
+                        payload
+                        if isinstance(payload, EmbeddedControlMessage)
+                        else self.tuple_to_frame(payload)
+                    )
+                    for payload in partitioner.flush(to, ecm)
+                )
+                for partitioner in self._partitioners.values()
+            )
+        )
+
+    def emit_state(
+        self,
+        state: State,
+        loop_counter: int = 0,
+        loop_start_id: str = "",
+    ) -> Iterable[typing.Tuple[ActorVirtualIdentity, DataPayload]]:
+        return chain(
+            *(
+                (
+                    (
+                        receiver,
+                        (
+                            StateFrame(
+                                payload,
+                                loop_counter=loop_counter,
+                                loop_start_id=loop_start_id,
+                            )
+                            if isinstance(payload, State)
+                            else self.tuple_to_frame(payload)
+                        ),
+                    )
+                    for receiver, payload in partitioner.flush_state(state)
+                )
+                for partitioner in self._partitioners.values()
+            )
+        )
+
+    def tuple_to_frame(self, tuples: typing.List[Tuple]) -> DataFrame:
+        return DataFrame(
+            frame=Table.from_pydict(
+                {
+                    name: [t.get_serialized_field(name) for t in tuples]
+                    for name in self.get_port().get_schema().get_attr_names()
+                },
+                schema=self.get_port().get_schema().as_arrow_schema(),
+            )
+        )

@@ -1,0 +1,160 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.texera.amber.operator.visualization.bubbleChart
+
+import com.fasterxml.jackson.annotation.{JsonProperty, JsonPropertyDescription}
+import com.kjetland.jackson.jsonSchema.annotations.{JsonSchemaInject, JsonSchemaTitle}
+import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
+import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.PythonTemplateBuilderStringContext
+import org.apache.texera.amber.pybuilder.PyStringTypes.EncodableString
+import org.apache.texera.amber.core.workflow.PortIdentity
+import org.apache.texera.amber.operator.PythonOperatorDescriptor
+import org.apache.texera.amber.operator.metadata.annotations.AutofillAttributeName
+import org.apache.texera.amber.operator.metadata.{OperatorGroupConstants, OperatorInfo}
+import org.apache.texera.amber.pybuilder.PythonTemplateBuilder
+
+import javax.validation.constraints.NotNull
+
+/**
+  * Visualization Operator to visualize results as a Bubble Chart
+  * User specifies 2 columns to use for the x, y labels. Size of bubbles determined via
+  * third column of data. Bubbles can be sorted via color using a fourth column.
+  */
+
+// type can be numerical only
+// The z column is the bubble size, which plotly express divides by a scale
+// factor, so text aborts the run. The x and y axes are positions and take any
+// type, the way a scatter plot's do.
+@JsonSchemaInject(json = """
+{
+  "attributeTypeRules": {
+    "zValue": { "enum": ["integer", "long", "double"] }
+  }
+}
+""")
+class BubbleChartOpDesc extends PythonOperatorDescriptor {
+
+  @JsonProperty(value = "xValue", required = true)
+  @JsonSchemaTitle("X-Column")
+  @JsonPropertyDescription("Data column for the x-axis")
+  @AutofillAttributeName
+  @NotNull(message = "X-Column cannot be empty")
+  var xValue: EncodableString = ""
+
+  @JsonProperty(value = "yValue", required = true)
+  @JsonSchemaTitle("Y-Column")
+  @JsonPropertyDescription("Data column for the y-axis")
+  @AutofillAttributeName
+  @NotNull(message = "Y-Column cannot be empty")
+  var yValue: EncodableString = ""
+
+  @JsonProperty(value = "zValue", required = true)
+  @JsonSchemaTitle("Z-Column")
+  @JsonPropertyDescription("Data column to determine bubble size")
+  @AutofillAttributeName
+  @NotNull(message = "Z-Column cannot be empty")
+  var zValue: EncodableString = ""
+
+  @JsonProperty(value = "enableColor", defaultValue = "false")
+  @JsonSchemaTitle("Enable Color")
+  @JsonPropertyDescription("Colors bubbles using a data column")
+  @JsonSchemaInject(json = """{"toggleHidden" : ["colorCategory"]}""")
+  var enableColor: Boolean = false
+
+  @JsonProperty(value = "colorCategory", required = false)
+  @JsonSchemaTitle("Color-Column")
+  @JsonPropertyDescription(
+    "Optional data column to color bubbles with; leave empty for uniform bubbles"
+  )
+  @AutofillAttributeName
+  var colorCategory: EncodableString = ""
+
+  override def getOutputSchemas(
+      inputSchemas: Map[PortIdentity, Schema]
+  ): Map[PortIdentity, Schema] = {
+    val outputSchema = Schema()
+      .add("html-content", AttributeType.STRING)
+    Map(operatorInfo.outputPorts.head.id -> outputSchema)
+  }
+
+  override def operatorInfo: OperatorInfo =
+    OperatorInfo.forVisualization(
+      "Bubble Chart",
+      "a 3D Scatter Plot; Bubbles are graphed using x and y labels, and their sizes determined by a z-value.",
+      OperatorGroupConstants.VISUALIZATION_BASIC_GROUP
+    )
+
+  def manipulateTable(): PythonTemplateBuilder = {
+    assert(xValue.nonEmpty, "X-Column cannot be empty")
+    assert(yValue.nonEmpty, "Y-Column cannot be empty")
+    assert(zValue.nonEmpty, "Z-Column cannot be empty")
+    pyb"""
+       |        # drops rows with missing values pertaining to relevant columns
+       |        table.dropna(subset=[$xValue, $yValue, $zValue], inplace = True)
+       |
+       |"""
+  }
+
+  def createPlotlyFigure(): PythonTemplateBuilder = {
+    assert(xValue.nonEmpty, "X-Column cannot be empty")
+    assert(yValue.nonEmpty, "Y-Column cannot be empty")
+    assert(zValue.nonEmpty, "Z-Column cannot be empty")
+    // An unset column counts as "no color" even with the toggle on, else px.scatter(color='') fails.
+    val colorArg = if (enableColor && colorCategory.nonEmpty) pyb", color=$colorCategory" else pyb""
+    pyb"""
+         |        fig = go.Figure(px.scatter(table, x=$xValue, y=$yValue, size=$zValue$colorArg, size_max=100))
+         |"""
+  }
+
+  override def generatePythonCode(): String = {
+    val finalCode =
+      pyb"""
+         |from pytexera import *
+         |
+         |import plotly.express as px
+         |import plotly.graph_objects as go
+         |import plotly.io
+         |import numpy as np
+         |
+         |
+         |class ProcessTableOperator(UDFTableOperator):
+         |
+         |    def render_error(self, error_msg):
+         |        return '''<h1>TreeMap is not available.</h1>
+         |                  <p>Reasons are: {} </p>
+         |               '''.format(error_msg)
+         |
+         |    @overrides
+         |    def process_table(self, table: Table, port: int) -> Iterator[Optional[TableLike]]:
+         |        if table.empty:
+         |            yield {'html-content': self.render_error("Input table is empty.")}
+         |            return
+         |        ${manipulateTable()}
+         |        ${createPlotlyFigure()}
+         |        if table.empty:
+         |            yield {'html-content': self.render_error("No valid rows left (every row has at least 1 missing value).")}
+         |            return
+         |        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+         |        html = plotly.io.to_html(fig, include_plotlyjs = 'cdn', auto_play = False)
+         |        yield {'html-content':html}
+         |"""
+    finalCode.encode
+  }
+}

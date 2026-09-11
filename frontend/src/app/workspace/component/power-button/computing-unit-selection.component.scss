@@ -1,0 +1,323 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+:host {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.computing-units-selection {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 220px;
+  max-width: 280px;
+
+  &.metrics-visible {
+    min-width: 290px;
+    max-width: none;
+    gap: 10px;
+
+    .computing-units-dropdown-button {
+      margin-left: auto;
+    }
+  }
+}
+
+.computing-units-dropdown {
+  width: 350px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.computing-unit-option {
+  display: block;
+  width: 100%;
+  padding: 0 !important;
+
+  &.unit-connecting {
+    color: #1890ff;
+  }
+
+  &.unit-disconnected {
+    color: #ff4d4f;
+  }
+
+  &.unit-terminating {
+    color: #faad14;
+  }
+
+  &[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+
+    .unit-status-indicator {
+      opacity: 1;
+      font-weight: 500;
+    }
+
+    .computing-unit-terminate-icon {
+      opacity: 1;
+      cursor: pointer !important;
+
+      &:hover {
+        color: #ff4d4f;
+      }
+    }
+  }
+}
+
+.computing-unit-row,
+.computing-unit-name,
+.create-computing-unit,
+.metric-item {
+  display: flex;
+  align-items: center;
+}
+
+.computing-unit-row {
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+  padding: 5px 12px;
+  box-sizing: border-box;
+}
+
+.computing-unit-name {
+  flex-grow: 1;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.computing-unit-name span,
+.unit-status-indicator {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-status-indicator {
+  margin-left: 4px;
+  font-size: 0.85em;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.computing-unit-terminate-icon {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.85;
+  color: #ff4d4f;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.create-computing-unit {
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.resource-metrics {
+  display: grid;
+}
+
+.computing-units-dropdown-button {
+  display: inline-flex;
+  align-items: center;
+  min-width: 220px;
+  max-width: 280px;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.button-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+
+  texera-user-avatar,
+  nz-badge,
+  i {
+    flex-shrink: 0;
+  }
+}
+
+.unit-name-text,
+.connect-text {
+  display: inline-block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 220px;
+  margin: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host ::ng-deep .ant-badge-status-dot {
+  position: relative;
+  top: -1px;
+  vertical-align: middle;
+}
+
+.metrics-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  min-width: 120px;
+  height: 32px;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  flex-shrink: 0;
+}
+
+.metric-item {
+  width: 100%;
+  height: 12px;
+  gap: 8px;
+}
+
+.metric-label {
+  width: 45px;
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.metric-bar-wrapper {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  width: 90px;
+  min-width: 60px;
+  height: 8px;
+  padding: 0;
+}
+
+#cpu-progress-bar,
+#memory-progress-bar,
+:host ::ng-deep .ant-progress,
+:host ::ng-deep .ant-progress-inner {
+  width: 100%;
+}
+
+#cpu-progress-bar,
+#memory-progress-bar {
+  margin: 0 !important;
+  padding: 0 !important;
+  vertical-align: middle;
+}
+
+.resource-metrics {
+  width: 250px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.general-metric {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 3px;
+  background-color: #f9fafb;
+}
+
+.metric-name,
+.metric-value {
+  margin: 0;
+}
+
+.metric-name {
+  font-size: 10px;
+}
+
+.metric-unit {
+  margin-left: 4px;
+  color: #888;
+  font-size: 0.9em;
+}
+
+.metric-percentage {
+  margin-left: 6px;
+  color: #555;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.unit-name-edit-input {
+  width: 100%;
+  max-width: 200px;
+  padding: 2px 6px;
+  border: 1px solid #d9d9d9;
+  border-radius: 2px;
+  background: white;
+  font-size: inherit;
+
+  &:focus {
+    border-color: #40a9ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    outline: none;
+  }
+}
+
+::ng-deep .error {
+  color: red;
+  font-weight: bold;
+}
+
+::ng-deep .warning {
+  color: #d4a000;
+  font-weight: bold;
+}
+
+::ng-deep .success {
+  color: green;
+  font-weight: bold;
+}
+
+::ng-deep .pip-exit.ok {
+  color: green;
+  font-weight: bold;
+}
+
+::ng-deep .pip-exit.err {
+  color: red;
+  font-weight: bold;
+}
+
+.env-unsynced-note {
+  margin-left: 0.5em;
+  font-size: 0.8em;
+  font-style: italic;
+  font-weight: normal;
+  color: rgba(0, 0, 0, 0.45);
+}

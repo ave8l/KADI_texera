@@ -1,0 +1,192 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+
+meta:
+  environment: github_rulesets
+  nextgen: true
+
+github:
+  description: "Human-AI Collaborative Data Science Using Visual Workflows"
+  homepage: https://texera.apache.org/
+  ghp_branch: gh-pages
+  ghp_path: /
+  labels:
+    - human-ai-collaboration
+    - ai-agents
+    - visual-workflows
+    - data-science
+    - runtime-debugging
+    - artificial-intelligence
+    - machine-learning
+    - interactive-engine
+    - cloud-native
+
+
+  protected_tags:
+    - "v*.*.*"
+
+  dependabot_alerts: true
+  dependabot_updates: false
+
+  features:
+    # Enable wiki for documentation
+    wiki: true
+    # Enable issue management
+    issues: true
+    # Enable projects for project management boards
+    projects: true
+    # Enable github discussions
+    discussions: true
+
+  pull_requests:
+    # allow auto-merge
+    allow_auto_merge: true
+    # enable updating head branches of pull requests
+    allow_update_branch: true
+    # auto-delete head branches after being merged
+    del_branch_on_merge: true
+
+  enabled_merge_buttons:
+    squash: true
+    squash_commit_message: PR_TITLE_AND_DESC
+    merge: false
+    rebase: false
+
+  rulesets:
+    - name: Merge Queue
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          exclude: []
+          include:
+            - "~DEFAULT_BRANCH"
+            # Merge queue rules do NOT support wildcard ref patterns, so
+            # release branches must be listed explicitly (not release/*).
+            # Add each release line here as it is cut.
+            - "refs/heads/release/v1.1"
+            - "refs/heads/release/v1.2"
+            - "refs/heads/release/v1.3"
+      rules:
+        - type: deletion
+        - type: non_fast_forward
+        - type: merge_queue
+          parameters:
+            merge_method: SQUASH
+            max_entries_to_build: 2
+            min_entries_to_merge: 2
+            max_entries_to_merge: 5
+            min_entries_to_merge_wait_minutes: 3
+            grouping_strategy: HEADGREEN
+            check_response_timeout_minutes: 45
+        - type: pull_request
+          parameters:
+            allowed_merge_methods:
+              - squash
+            dismiss_stale_reviews_on_push: false
+            require_code_owner_review: false
+            require_last_push_approval: false
+            required_approving_review_count: 1
+            required_review_thread_resolution: true
+        - type: required_linear_history
+        - type: required_status_checks
+          parameters:
+            strict_required_status_checks_policy: false
+            required_status_checks:
+              - context: Required Checks
+              - context: Check License Headers
+              - context: Validate PR title
+              # `Backport Approvals` deliberately does NOT belong here — it
+              # lives in its own default-branch-only ruleset below. Adding it
+              # to this list strands every open PR into a release branch, since
+              # the workflow producing it exists only on the default branch.
+
+    # Kept out of the Merge Queue ruleset above, which also covers the release
+    # branches: `backport-approval-check.yml` only exists on the default branch,
+    # and a `pull_request` run takes its workflows from the merge ref — so for a
+    # PR into release/vX.Y the check has no producer, the context never appears,
+    # and the PR waits on it forever. It has nothing to say there either: a PR
+    # already targeting a release branch is itself a backport and reports
+    # success. Scoping it to the default branch is what makes it enforceable
+    # without stranding every open backport PR.
+    - name: "Backport Approvals"
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          exclude: []
+          include:
+            - "~DEFAULT_BRANCH"
+      rules:
+        # Every release/* label must be approved by that branch's release
+        # manager before the merge, so a merged PR's labels are exactly the
+        # branches it was backported to
+        # (.github/workflows/backport-approval-check.yml).
+        - type: required_status_checks
+          parameters:
+            strict_required_status_checks_policy: false
+            required_status_checks:
+              - context: Backport Approvals
+
+    - name: "Default Branch Protection"
+      type: branch
+      branches:
+        includes:
+          - "~DEFAULT_BRANCH"
+          - "release/*"
+        excludes: []
+      bypass_teams:
+        - "root" # apache/root — ASF Infra team
+      restrict_deletion: true
+      restrict_force_push: true
+
+    # Restrict who can create branches: everything is blocked except the
+    # allowlisted prefixes below (main, release/*, backport/*, gh-pages).
+    # `creation` is not available in asfyaml convenience syntax, and that
+    # syntax forbids mixing bypass_teams into a raw payload, so this
+    # ruleset uses the raw form with a numeric actor_id for the Infra team.
+    - name: "Restrict Branch Creation"
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          include:
+            - "~ALL"
+          exclude:
+            # Globs don't cross '/' (even a trailing **), so use **/* to
+            # match branches at any depth under a prefix.
+            - "refs/heads/main"
+            - "refs/heads/release/**/*"
+            - "refs/heads/backport/**/*"
+            - "refs/heads/gh-pages"
+            - "refs/heads/dependabot/**/*"
+            - "refs/heads/gh-readonly-queue/**/*"
+      bypass_actors:
+        # apache/root — ASF Infra team.
+        - actor_id: 118420
+          actor_type: Team
+          bypass_mode: always
+      rules:
+        - type: creation
+notifications:
+  commits: commits@texera.apache.org
+  issues: notifications@texera.apache.org
+  pullrequests: notifications@texera.apache.org
+  discussions: dev@texera.apache.org
+  jobs: commits@texera.apache.org

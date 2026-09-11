@@ -1,0 +1,167 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+from contextlib import contextmanager
+from threading import Event
+from typing import Iterator, Optional
+
+from core.architecture.managers import Context
+from core.models import State, TupleLike, InternalMarker
+from core.models.internal_marker import StartChannel, EndChannel
+from core.models.table import all_output_to_tuple
+from core.util import Stoppable
+from core.util.console_message.replace_print import replace_print
+from core.util.runnable import Runnable
+
+
+class DataProcessor(Runnable, Stoppable):
+    def __init__(self, context: Context):
+        self._running = Event()
+        self._context = context
+
+    def run(self) -> None:
+        """
+        Start the data processing loop. Wait for context switch conditions to be met,
+        then continuously process markers or tuples until stopped.
+        """
+        with self._context.tuple_processing_manager.context_switch_condition:
+            self._context.tuple_processing_manager.context_switch_condition.wait()
+        self._running.set()
+        self._check_and_process_debug_command()
+        while self._running.is_set():
+            tpm = self._context.tuple_processing_manager
+            spm = self._context.state_processing_manager
+            has_marker = tpm.current_internal_marker is not None
+            has_state = spm.current_input_state is not None
+            has_tuple = tpm.current_input_tuple is not None
+            # MainLoop is single-threaded and sets at most one of
+            # current_internal_marker / current_input_state /
+            # current_input_tuple per cycle before switching to here, so
+            # exactly one slot must be populated on every iteration.
+            if has_marker + has_state + has_tuple != 1:
+                raise RuntimeError(
+                    "DataProcessor expected exactly one queued input per "
+                    f"iteration, got marker={has_marker}, state={has_state}, "
+                    f"tuple={has_tuple}"
+                )
+            if has_marker:
+                self.process_internal_marker(tpm.get_internal_marker())
+            elif has_state:
+                self.process_state(spm.get_input_state())
+            else:
+                self.process_tuple()
+
+    def process_internal_marker(self, internal_marker: InternalMarker) -> None:
+        with self._executor_session() as (executor, port_id):
+            if isinstance(internal_marker, StartChannel):
+                self._set_output_state(executor.produce_state_on_start(port_id))
+            elif isinstance(internal_marker, EndChannel):
+                self._set_output_state(executor.produce_state_on_finish(port_id))
+                # Flush the state to MainLoop before producing tuples so the
+                # state and the tuple stream don't share a single switch.
+                self._switch_context()
+                self._set_output_tuple(executor.on_finish(port_id))
+
+    def process_state(self, state: State) -> None:
+        """
+        Process an input marker by invoking appropriate state
+        or tuple generation based on the marker type.
+        """
+        with self._executor_session() as (executor, port_id):
+            self._set_output_state(executor.process_state(state, port_id))
+
+    def process_tuple(self) -> None:
+        """
+        Process an input tuple by invoking the executor's tuple processing method.
+        """
+        finished_current = self._context.tuple_processing_manager.finished_current
+        while not finished_current.is_set():
+            with self._executor_session() as (executor, port_id):
+                tuple_ = self._context.tuple_processing_manager.get_input_tuple()
+                self._set_output_tuple(executor.process_tuple(tuple_, port_id))
+
+    @contextmanager
+    def _executor_session(self):
+        """
+        Open one executor invocation: hand back (executor, port_id) under a
+        print-capture session, route any exception to the exception manager
+        and queue the stack trace as a console message, and always switch
+        back to MainLoop on exit. Reporting must happen *before* the
+        switch: MainLoop's post-switch hook flushes console messages and
+        then enters EXCEPTION_PAUSE, so anything queued after the switch
+        would arrive at the coordinator only after the worker resumes.
+        """
+        try:
+            executor = self._context.executor_manager.executor
+            port_id = self._context.tuple_processing_manager.get_input_port_id()
+            with replace_print(
+                self._context.worker_id,
+                self._context.console_message_manager.print_buf,
+            ):
+                yield executor, port_id
+        except Exception as err:
+            self._context.report_exception(err)
+        finally:
+            self._switch_context()
+
+    def _set_output_tuple(self, output_iterator: Iterator[Optional[TupleLike]]) -> None:
+        """
+        Set the output tuple after processing by the executor.
+        """
+        for output in output_iterator:
+            # output could be a None, a TupleLike, or a TableLike.
+            for output_tuple in all_output_to_tuple(output):
+                if output_tuple is not None:
+                    output_tuple.finalize(
+                        self._context.output_manager.get_port().get_schema()
+                    )
+                self._switch_context()
+                self._context.tuple_processing_manager.current_output_tuple = (
+                    output_tuple
+                )
+                self._switch_context()
+        self._context.tuple_processing_manager.finished_current.set()
+
+    def _set_output_state(self, output_state: State) -> None:
+        """
+        Set the output state after processing by the executor.
+        """
+        if output_state is not None and not isinstance(output_state, State):
+            output_state = State(output_state)
+        self._context.state_processing_manager.current_output_state = output_state
+
+    def _switch_context(self) -> None:
+        """
+        Notify the MainLoop thread and wait here until being switched back.
+        """
+        with self._context.tuple_processing_manager.context_switch_condition:
+            self._context.tuple_processing_manager.context_switch_condition.notify()
+            self._context.tuple_processing_manager.context_switch_condition.wait()
+        self._check_and_process_debug_command()
+
+    def _check_and_process_debug_command(self) -> None:
+        """
+        If a debug command is available, invokes the debugger from this frame.
+        """
+        if self._context.debug_manager.has_debug_command():
+            # Let debugger trace from the current frame.
+            # This line will also trigger cmdloop in the debugger.
+            # This line has no side effects on the current debugger state.
+            self._context.debug_manager.debugger.set_trace()
+
+    def stop(self):
+        self._running.clear()

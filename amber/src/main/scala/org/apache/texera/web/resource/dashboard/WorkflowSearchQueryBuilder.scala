@@ -1,0 +1,161 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.texera.web.resource.dashboard
+
+import org.apache.texera.dao.jooq.generated.Tables._
+import org.apache.texera.dao.jooq.generated.tables.pojos.Workflow
+import org.apache.texera.web.resource.dashboard.DashboardResource.DashboardClickableFileEntry
+import org.apache.texera.web.resource.dashboard.FulltextSearchQueryUtils._
+import org.apache.texera.web.resource.dashboard.user.workflow.WorkflowResource.DashboardWorkflow
+import org.jooq.impl.DSL
+import org.jooq.{Condition, GroupField, Record, TableLike}
+
+import scala.jdk.CollectionConverters.CollectionHasAsScala
+import org.apache.texera.dao.jooq.generated.enums.{DefaultViewEnum, PrivilegeEnum}
+
+object WorkflowSearchQueryBuilder extends SearchQueryBuilder {
+
+  override val mappedResourceSchema: UnifiedResourceSchema = {
+    UnifiedResourceSchema(
+      resourceType = DSL.inline(SearchQueryBuilder.WORKFLOW_RESOURCE_TYPE),
+      name = WORKFLOW.NAME,
+      description = WORKFLOW.DESCRIPTION,
+      creationTime = WORKFLOW.CREATION_TIME,
+      wid = WORKFLOW.WID,
+      lastModifiedTime = WORKFLOW.LAST_MODIFIED_TIME,
+      executionTime = DSL.field(
+        DSL
+          .select(DSL.max(WORKFLOW_EXECUTIONS.STARTING_TIME))
+          .from(WORKFLOW_EXECUTIONS)
+          .join(WORKFLOW_VERSION)
+          .on(WORKFLOW_EXECUTIONS.VID.eq(WORKFLOW_VERSION.VID))
+          .where(WORKFLOW_VERSION.WID.eq(WORKFLOW.WID))
+      ),
+      workflowUserAccess = WORKFLOW_USER_ACCESS.PRIVILEGE,
+      uid = WORKFLOW_OF_USER.UID,
+      ownerId = WORKFLOW_OF_USER.UID,
+      userName = USER.NAME,
+      workflowCoverImage = DSL.max(WORKFLOW_COVER_IMAGE.IMAGE).as("workflow_cover_image"),
+      workflowDefaultView = WORKFLOW.DEFAULT_VIEW.as("workflow_default_view")
+    )
+  }
+
+  override protected def constructFromClause(
+      uid: Integer,
+      params: DashboardResource.SearchQueryParams,
+      includePublic: Boolean = false
+  ): TableLike[_] = {
+    val baseQuery = WORKFLOW
+      .leftJoin(WORKFLOW_USER_ACCESS)
+      .on(WORKFLOW_USER_ACCESS.WID.eq(WORKFLOW.WID))
+      .and(if (uid == null) DSL.falseCondition() else WORKFLOW_USER_ACCESS.UID.eq(uid))
+      .leftJoin(WORKFLOW_OF_USER)
+      .on(WORKFLOW_OF_USER.WID.eq(WORKFLOW.WID))
+      .leftJoin(USER)
+      .on(USER.UID.eq(WORKFLOW_OF_USER.UID))
+      .leftJoin(WORKFLOW_COVER_IMAGE)
+      .on(WORKFLOW_COVER_IMAGE.WID.eq(WORKFLOW.WID))
+
+    var condition: Condition = DSL.trueCondition()
+    if (uid == null) {
+      condition = WORKFLOW.IS_PUBLIC.eq(true)
+    } else {
+      val privateAccessCondition = WORKFLOW_USER_ACCESS.UID.eq(uid)
+      if (includePublic) {
+        condition = privateAccessCondition.or(WORKFLOW.IS_PUBLIC.eq(true))
+      } else {
+        condition = privateAccessCondition
+      }
+    }
+
+    baseQuery.where(condition)
+  }
+
+  override protected def constructWhereClause(
+      uid: Integer,
+      params: DashboardResource.SearchQueryParams
+  ): Condition = {
+    val splitKeywords = params.keywords.asScala
+      .flatMap(_.split("[+\\-()<>~*@\"]"))
+      .filter(_.nonEmpty)
+      .toSeq
+    getDateFilter(
+      params.creationStartDate,
+      params.creationEndDate,
+      WORKFLOW.CREATION_TIME
+    )
+      // Apply lastModified_time date filter
+      .and(
+        getDateFilter(
+          params.modifiedStartDate,
+          params.modifiedEndDate,
+          WORKFLOW.LAST_MODIFIED_TIME
+        )
+      )
+      // Apply workflowID filter
+      .and(getContainsFilter(params.workflowIDs, WORKFLOW.WID))
+      // Apply owner filter
+      .and(getContainsFilter(params.owners, USER.EMAIL))
+      // Apply operators filter
+      .and(getOperatorsFilter(params.operators, WORKFLOW.CONTENT))
+      // Apply fulltext search filter
+      .and(
+        getFullTextSearchFilter(
+          splitKeywords,
+          List(WORKFLOW.NAME, WORKFLOW.DESCRIPTION, WORKFLOW.CONTENT)
+        )
+      )
+  }
+
+  override protected def getGroupByFields: Seq[GroupField] = {
+    Seq(
+      WORKFLOW.NAME,
+      WORKFLOW.DESCRIPTION,
+      WORKFLOW.CREATION_TIME,
+      WORKFLOW.WID,
+      WORKFLOW.LAST_MODIFIED_TIME,
+      WORKFLOW_USER_ACCESS.PRIVILEGE,
+      WORKFLOW_OF_USER.UID,
+      USER.NAME
+    )
+  }
+
+  override def toEntryImpl(
+      uid: Integer,
+      record: Record
+  ): DashboardResource.DashboardClickableFileEntry = {
+    val dw = DashboardWorkflow(
+      record.into(WORKFLOW_OF_USER).getUid == uid,
+      Option(record.get(WORKFLOW_USER_ACCESS.PRIVILEGE, classOf[PrivilegeEnum]))
+        .map(_.toString)
+        .getOrElse(PrivilegeEnum.NONE.toString),
+      record.into(USER).getName, {
+        // The select lists specific columns, so the POJO built from the record does not carry
+        // this one. Without it the listing forgets the default-view preference on every refresh.
+        val w = record.into(WORKFLOW).into(classOf[Workflow])
+        w.setDefaultView(record.get("workflow_default_view", classOf[DefaultViewEnum]))
+        w
+      },
+      record.into(USER).getUid,
+      Option(record.get("workflow_cover_image", classOf[String]))
+    )
+    DashboardClickableFileEntry(SearchQueryBuilder.WORKFLOW_RESOURCE_TYPE, workflow = Some(dw))
+  }
+}

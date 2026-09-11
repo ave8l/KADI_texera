@@ -1,0 +1,95 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Required Checks
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'release/**'
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/') }}
+
+jobs:
+  # Decide which build stacks this event needs (label union on PR events and
+  # merge groups — a merge group unions the labels of every PR it contains,
+  # and skips every stack when its tree matches an already-green PR head;
+  # all stacks on push/dispatch). Shared with Backport Checks via the
+  # reusable precheck workflow so the label -> stack mapping lives in one place
+  # (.github/workflows/precheck.yml). The backport_targets output is unused
+  # here — backport preflight/build moved to the Backport Checks workflow.
+  precheck:
+    uses: ./.github/workflows/precheck.yml
+
+  build:
+    needs: precheck
+    uses: ./.github/workflows/build.yml
+    with:
+      run_frontend: ${{ needs.precheck.outputs.run_frontend == 'true' }}
+      run_amber: ${{ needs.precheck.outputs.run_amber == 'true' }}
+      run_amber_integration: ${{ needs.precheck.outputs.run_amber_integration == 'true' }}
+      run_platform: ${{ needs.precheck.outputs.run_platform == 'true' }}
+      run_platform_integration: ${{ needs.precheck.outputs.run_platform_integration == 'true' }}
+      run_pyamber: ${{ needs.precheck.outputs.run_pyamber == 'true' }}
+      run_agent_service: ${{ needs.precheck.outputs.run_agent_service == 'true' }}
+      run_infra: ${{ needs.precheck.outputs.run_infra == 'true' }}
+      run_pyright_language_service: ${{ needs.precheck.outputs.run_pyright_language_service == 'true' }}
+    secrets: inherit
+
+  required-checks:
+    # Do not rename this job — its display name is referenced in .asf.yaml.
+    name: Required Checks
+    needs: [precheck, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required checks succeeded or were skipped
+        run: |
+          declare -A results=(
+            [precheck]="${{ needs.precheck.result }}"
+            [build]="${{ needs.build.result }}"
+          )
+          failed=0
+          for job in "${!results[@]}"; do
+            r="${results[$job]}"
+            echo "${job}: ${r}"
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
+              failed=1
+            fi
+          done
+          if (( failed )); then
+            echo "::error::One or more required checks did not succeed."
+            exit 1
+          fi
+          echo "All required checks succeeded or were skipped."

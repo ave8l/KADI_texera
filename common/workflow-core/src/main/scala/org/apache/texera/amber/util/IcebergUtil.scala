@@ -1,0 +1,469 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.texera.amber.util
+
+import org.apache.texera.common.config.StorageConfig
+import org.apache.texera.amber.core.tuple.{Attribute, AttributeType, LargeBinary, Schema, Tuple}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.util.Shell
+import org.apache.iceberg.catalog.{Catalog, SupportsNamespaces, TableIdentifier}
+import org.apache.iceberg.data.parquet.GenericParquetReaders
+import org.apache.iceberg.data.{GenericRecord, Record}
+import org.apache.iceberg.aws.s3.S3FileIO
+import org.apache.iceberg.hadoop.{HadoopCatalog, HadoopFileIO}
+import org.apache.iceberg.io.{CloseableIterator, InputFile}
+import org.apache.iceberg.jdbc.JdbcCatalog
+import org.apache.iceberg.parquet.{Parquet, ParquetValueReader}
+import org.apache.iceberg.rest.RESTCatalog
+import org.apache.iceberg.types.Type.PrimitiveType
+import org.apache.iceberg.types.Types
+import org.apache.iceberg.{
+  CatalogProperties,
+  DataFile,
+  PartitionSpec,
+  Table,
+  TableProperties,
+  Schema => IcebergSchema
+}
+import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.exceptions.AlreadyExistsException
+
+import java.nio.ByteBuffer
+import java.nio.file.Path
+import java.sql.Timestamp
+import java.time.{LocalDateTime, ZoneId}
+import scala.jdk.CollectionConverters._
+
+/**
+  * Util functions to interact with Iceberg Tables
+  */
+object IcebergUtil {
+
+  // Unique suffix for LARGE_BINARY field encoding
+  private val LARGE_BINARY_FIELD_SUFFIX = "__texera_large_binary_ptr"
+
+  /**
+    * Creates the Hadoop `Configuration` used by catalogs that access the local file
+    * system through `HadoopFileIO`.
+    *
+    * On Windows hosts without a native Hadoop installation (winutils.exe), Hadoop's
+    * default local file system fails on every write because it shells out to winutils
+    * for chmod. In that case, swap in [[WinutilsFreeLocalFileSystem]], which skips
+    * permission operations, so local development works without installing winutils.
+    * On all other hosts the default configuration is returned unchanged.
+    *
+    * @param useWinutilsFreeLocalFs whether to swap in the winutils-free file system;
+    *                               defaults to the host's actual winutils availability
+    *                               and is only overridden in tests.
+    */
+  private[util] def newLocalHadoopConf(
+      useWinutilsFreeLocalFs: Boolean = Shell.WINDOWS && !Shell.hasWinutilsPath()
+  ): Configuration = {
+    val conf = new Configuration()
+    if (useWinutilsFreeLocalFs) {
+      conf.set("fs.file.impl", classOf[WinutilsFreeLocalFileSystem].getName)
+      // The FileSystem cache is keyed by scheme (not by impl class), so a plain
+      // LocalFileSystem cached earlier by other code would bypass this override.
+      conf.setBoolean("fs.file.impl.disable.cache", true)
+    }
+    conf
+  }
+
+  /**
+    * Creates and initializes a HadoopCatalog with the given parameters.
+    * - Uses the Hadoop `Configuration` from [[newLocalHadoopConf]], meaning the local
+    * file system (or `file:/`) will be used by default instead of HDFS.
+    * - The `warehouse` parameter specifies the root directory for storing table data.
+    * - Sets the file I/O implementation to `HadoopFileIO`.
+    *
+    * @param catalogName the name of the catalog.
+    * @param warehouse   the root path for the warehouse where the tables are stored.
+    * @return the initialized HadoopCatalog instance.
+    */
+  def createHadoopCatalog(
+      catalogName: String,
+      warehouse: Path
+  ): HadoopCatalog = {
+    val catalog = new HadoopCatalog()
+    catalog.setConf(newLocalHadoopConf()) // Defaults to `file:/`, no HDFS
+    catalog.initialize(
+      catalogName,
+      Map(
+        "warehouse" -> warehouse.toString,
+        CatalogProperties.FILE_IO_IMPL -> classOf[HadoopFileIO].getName
+      ).asJava
+    )
+
+    catalog
+  }
+
+  /**
+    * Creates and initializes a RESTCatalog with the given parameters.
+    * - Configures the catalog to interact with a REST endpoint.
+    * - The `warehouse` parameter specifies the root directory for storing table data.
+    * - Sets the file I/O implementation to `HadoopFileIO`.
+    * - Authentication support is not implemented yet (see TODO).
+    *
+    * Note: The only tested REST catalog implementation is `tabulario/iceberg-rest`
+    * (https://hub.docker.com/r/tabulario/iceberg-rest).
+    *
+    * TODO: Add authentication support, such as OAuth2, using `OAuth2Properties`.
+    *
+    * @param catalogName the name of the catalog.
+    * @param warehouse   the root path for the warehouse where the tables are stored.
+    * @return the initialized RESTCatalog instance.
+    */
+  def createRestCatalog(
+      catalogName: String,
+      warehouse: String
+  ): RESTCatalog = {
+    val catalog = new RESTCatalog()
+
+    // S3 settings (endpoint, region, credentials) are supplied by the REST
+    // catalog server at runtime.
+    val properties = Map(
+      "warehouse" -> warehouse,
+      CatalogProperties.URI -> StorageConfig.icebergRESTCatalogUri,
+      CatalogProperties.FILE_IO_IMPL -> classOf[S3FileIO].getName
+    )
+
+    catalog.initialize(catalogName, properties.asJava)
+    catalog
+  }
+
+  def createPostgresCatalog(
+      catalogName: String,
+      warehouse: Path
+  ): JdbcCatalog = {
+    // Occasionally the jdbc driver cannot be found during CI run.
+    // Explicitly load the JDBC driver to avoid flaky CI failures.
+    Class.forName("org.postgresql.Driver")
+    val catalog = new JdbcCatalog()
+    // Must be set before initialize() so HadoopFileIO picks up this configuration.
+    catalog.setConf(newLocalHadoopConf())
+    catalog.initialize(
+      catalogName,
+      Map(
+        "warehouse" -> warehouse.toString.replace(
+          ":",
+          ""
+        ), //warehouse path is C:/xxx/xxx in Windows, but PyArrow on the Python side cannot parse it. The acceptable format for PyArrow is C/xxx/xxx.
+        CatalogProperties.FILE_IO_IMPL -> classOf[HadoopFileIO].getName,
+        CatalogProperties.URI -> s"jdbc:postgresql://${StorageConfig.icebergPostgresCatalogUriWithoutScheme}",
+        JdbcCatalog.PROPERTY_PREFIX + "user" -> StorageConfig.icebergPostgresCatalogUsername,
+        JdbcCatalog.PROPERTY_PREFIX + "password" -> StorageConfig.icebergPostgresCatalogPassword
+      ).asJava
+    )
+    catalog
+  }
+
+  /**
+    * Creates a new Iceberg table with the specified schema and properties.
+    * - Drops the existing table if `overrideIfExists` is true and the table already exists.
+    * - Creates an unpartitioned table with custom commit retry properties.
+    *
+    * @param catalog the Iceberg catalog to manage the table.
+    * @param tableNamespace the namespace of the table.
+    * @param tableName the name of the table.
+    * @param tableSchema the schema of the table.
+    * @param overrideIfExists whether to drop and recreate the table if it exists.
+    * @return the created Iceberg table.
+    */
+  def createTable(
+      catalog: Catalog,
+      tableNamespace: String,
+      tableName: String,
+      tableSchema: IcebergSchema,
+      overrideIfExists: Boolean
+  ): Table = {
+
+    val tableProperties = Map(
+      TableProperties.COMMIT_NUM_RETRIES -> StorageConfig.icebergTableCommitNumRetries.toString,
+      TableProperties.COMMIT_MAX_RETRY_WAIT_MS -> StorageConfig.icebergTableCommitMaxRetryWaitMs.toString,
+      TableProperties.COMMIT_MIN_RETRY_WAIT_MS -> StorageConfig.icebergTableCommitMinRetryWaitMs.toString
+    )
+
+    val namespace = Namespace.of(tableNamespace)
+
+    catalog match {
+      case nsCatalog: SupportsNamespaces =>
+        try nsCatalog.createNamespace(namespace, Map.empty[String, String].asJava)
+        catch {
+          case _: AlreadyExistsException => ()
+        }
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Catalog ${catalog.getClass.getName} does not support namespaces"
+        )
+    }
+
+    val identifier = TableIdentifier.of(tableNamespace, tableName)
+    if (catalog.tableExists(identifier) && overrideIfExists) {
+      catalog.dropTable(identifier)
+    }
+    catalog.createTable(
+      identifier,
+      tableSchema,
+      PartitionSpec.unpartitioned,
+      tableProperties.asJava
+    )
+
+  }
+
+  /**
+    * Loads metadata for an existing Iceberg table.
+    * - Returns `Some(Table)` if the table exists and is successfully loaded.
+    * - Returns `None` if the table does not exist or cannot be loaded.
+    *
+    * @param catalog the Iceberg catalog to load the table from.
+    * @param tableNamespace the namespace of the table.
+    * @param tableName the name of the table.
+    * @return an Option containing the table, or None if not found.
+    */
+  def loadTableMetadata(
+      catalog: Catalog,
+      tableNamespace: String,
+      tableName: String
+  ): Option[Table] = {
+    val identifier = TableIdentifier.of(tableNamespace, tableName)
+    try {
+      Some(catalog.loadTable(identifier))
+    } catch {
+      case _: Exception => None
+    }
+  }
+
+  /**
+    * Converts a custom Amber `Schema` to an Iceberg `Schema`.
+    * Field names are encoded to preserve LARGE_BINARY type information.
+    *
+    * @param amberSchema The custom Amber Schema.
+    * @return An Iceberg Schema.
+    */
+  def toIcebergSchema(amberSchema: Schema): IcebergSchema = {
+    val icebergFields = amberSchema.getAttributes.zipWithIndex.map {
+      case (attribute, index) =>
+        val encodedName = encodeLargeBinaryFieldName(attribute.getName, attribute.getType)
+        val icebergType = toIcebergType(attribute.getType)
+        Types.NestedField.optional(index + 1, encodedName, icebergType)
+    }
+    new IcebergSchema(icebergFields.asJava)
+  }
+
+  /**
+    * Converts a custom Amber `AttributeType` to an Iceberg `Type`.
+    * Note: LARGE_BINARY is stored as StringType; field name encoding is used to distinguish it.
+    *
+    * @param attributeType The custom Amber AttributeType.
+    * @return The corresponding Iceberg Type.
+    */
+  def toIcebergType(attributeType: AttributeType): PrimitiveType = {
+    attributeType match {
+      case AttributeType.STRING    => Types.StringType.get()
+      case AttributeType.INTEGER   => Types.IntegerType.get()
+      case AttributeType.LONG      => Types.LongType.get()
+      case AttributeType.DOUBLE    => Types.DoubleType.get()
+      case AttributeType.BOOLEAN   => Types.BooleanType.get()
+      case AttributeType.TIMESTAMP => Types.TimestampType.withoutZone()
+      case AttributeType.BINARY    => Types.BinaryType.get()
+      case AttributeType.LARGE_BINARY =>
+        Types.StringType.get() // Store LargeBinary URI as string
+      case AttributeType.ANY =>
+        throw new IllegalArgumentException("ANY type is not supported in Iceberg")
+    }
+  }
+
+  /**
+    * Converts a custom Amber `Tuple` to an Iceberg `GenericRecord`, handling `null` values.
+    *
+    * @param tuple The custom Amber Tuple.
+    * @return An Iceberg GenericRecord.
+    */
+  def toGenericRecord(icebergSchema: IcebergSchema, tuple: Tuple): Record = {
+    val record = GenericRecord.create(icebergSchema)
+
+    tuple.schema.getAttributes.zipWithIndex.foreach {
+      case (attribute, index) =>
+        val fieldName = encodeLargeBinaryFieldName(attribute.getName, attribute.getType)
+        val value = tuple.getField[AnyRef](index) match {
+          case null                        => null
+          case ts: Timestamp               => ts.toInstant.atZone(ZoneId.systemDefault()).toLocalDateTime
+          case bytes: Array[Byte]          => ByteBuffer.wrap(bytes)
+          case largeBinaryPtr: LargeBinary => largeBinaryPtr.getUri
+          case other                       => other
+        }
+        record.setField(fieldName, value)
+    }
+
+    record
+  }
+
+  /**
+    * Converts an Iceberg `Record` to an Amber `Tuple`
+    *
+    * @param record      The Iceberg Record.
+    * @param amberSchema The corresponding Amber Schema.
+    * @return An Amber Tuple.
+    */
+  def fromRecord(record: Record, amberSchema: Schema): Tuple = {
+    val fieldValues = amberSchema.getAttributes.map { attribute =>
+      val fieldName = encodeLargeBinaryFieldName(attribute.getName, attribute.getType)
+      val rawValue = record.getField(fieldName)
+
+      rawValue match {
+        case null               => null
+        case ldt: LocalDateTime => Timestamp.valueOf(ldt)
+        case buffer: ByteBuffer =>
+          val bytes = new Array[Byte](buffer.remaining())
+          buffer.get(bytes)
+          bytes
+        case uri: String if attribute.getType == AttributeType.LARGE_BINARY =>
+          new LargeBinary(uri)
+        case other => other
+      }
+    }
+
+    Tuple(amberSchema, fieldValues.toArray)
+  }
+
+  /**
+    * Encodes a field name for LARGE_BINARY types by adding a unique system suffix.
+    * This ensures LARGE_BINARY fields can be identified when reading from Iceberg.
+    *
+    * @param fieldName The original field name
+    * @param attributeType The attribute type
+    * @return The encoded field name with a unique suffix for LARGE_BINARY types
+    */
+  private def encodeLargeBinaryFieldName(
+      fieldName: String,
+      attributeType: AttributeType
+  ): String = {
+    if (attributeType == AttributeType.LARGE_BINARY) {
+      s"${fieldName}${LARGE_BINARY_FIELD_SUFFIX}"
+    } else {
+      fieldName
+    }
+  }
+
+  /**
+    * Decodes a field name by removing the unique system suffix if present.
+    * This restores the original user-defined field name.
+    *
+    * @param fieldName The encoded field name
+    * @return The original field name with system suffix removed
+    */
+  private def decodeLargeBinaryFieldName(fieldName: String): String = {
+    if (isLargeBinaryField(fieldName)) {
+      fieldName.substring(0, fieldName.length - LARGE_BINARY_FIELD_SUFFIX.length)
+    } else {
+      fieldName
+    }
+  }
+
+  /**
+    * Checks if a field name indicates a LARGE_BINARY type by examining the unique suffix.
+    *
+    * @param fieldName The field name to check
+    * @return true if the field represents a LARGE_BINARY type, false otherwise
+    */
+  private def isLargeBinaryField(fieldName: String): Boolean = {
+    fieldName.endsWith(LARGE_BINARY_FIELD_SUFFIX)
+  }
+
+  /**
+    * Converts an Iceberg `Schema` to an Amber `Schema`.
+    * Field names are decoded to restore original names and detect LARGE_BINARY types.
+    *
+    * @param icebergSchema The Iceberg Schema.
+    * @return The corresponding Amber Schema.
+    */
+  def fromIcebergSchema(icebergSchema: IcebergSchema): Schema = {
+    val attributes = icebergSchema
+      .columns()
+      .asScala
+      .map { field =>
+        val fieldName = field.name()
+        val attributeType = fromIcebergType(field.`type`().asPrimitiveType(), fieldName)
+        val originalName = decodeLargeBinaryFieldName(fieldName)
+        new Attribute(originalName, attributeType)
+      }
+      .toList
+
+    Schema(attributes)
+  }
+
+  /**
+    * Converts an Iceberg `Type` to an Amber `AttributeType`.
+    *
+    * @param icebergType The Iceberg Type.
+    * @param fieldName The field name (used to detect LARGE_BINARY by suffix).
+    * @return The corresponding Amber AttributeType.
+    */
+  def fromIcebergType(
+      icebergType: PrimitiveType,
+      fieldName: String = ""
+  ): AttributeType = {
+    icebergType match {
+      case _: Types.StringType =>
+        if (isLargeBinaryField(fieldName)) AttributeType.LARGE_BINARY else AttributeType.STRING
+      case _: Types.IntegerType   => AttributeType.INTEGER
+      case _: Types.LongType      => AttributeType.LONG
+      case _: Types.DoubleType    => AttributeType.DOUBLE
+      case _: Types.BooleanType   => AttributeType.BOOLEAN
+      case _: Types.TimestampType => AttributeType.TIMESTAMP
+      case _: Types.BinaryType    => AttributeType.BINARY
+      case _                      => throw new IllegalArgumentException(s"Unsupported Iceberg type: $icebergType")
+    }
+  }
+
+  /**
+    * Returns a Record iterator over the given Iceberg DataFile.
+    *
+    * The returned `CloseableIterator` (Iceberg's iterator type) owns the
+    * underlying Parquet reader / S3InputStream / AWS HTTP-pool slot. The
+    * caller MUST close it once iteration is finished, otherwise those
+    * resources are leaked.
+    *
+    * @param dataFile the data file
+    * @param schema the schema of the table
+    * @param table the iceberg table
+    * @return a closeable iterator over the records in the data file
+    */
+  def readDataFileAsIterator(
+      dataFile: DataFile,
+      schema: IcebergSchema,
+      table: Table
+  ): CloseableIterator[Record] = {
+    val inputFile: InputFile = table.io().newInputFile(dataFile)
+    val readerFunc
+        : java.util.function.Function[org.apache.parquet.schema.MessageType, ParquetValueReader[
+          _
+        ]] =
+      (messageType: org.apache.parquet.schema.MessageType) =>
+        GenericParquetReaders.buildReader(schema, messageType)
+    Parquet
+      .read(inputFile)
+      .project(schema)
+      .createReaderFunc(readerFunc)
+      .build()
+      .iterator()
+  }
+
+}

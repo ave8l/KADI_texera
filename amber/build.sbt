@@ -1,0 +1,351 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+name := "amber"
+
+
+enablePlugins(JavaAppPackaging)
+
+// Ship LICENSE-binary, NOTICE-binary, DISCLAIMER, and the licenses/
+// directory at the top of the Universal dist zip.
+// See project/AddMetaInfLicenseFiles.scala. The Universal zip is jar-only,
+// so we ship LICENSE-binary-java; the dockerfile merges in
+// LICENSE-binary-python at image build time for coordinator/runner.
+Universal / mappings := AddMetaInfLicenseFiles.distMappings(
+  (Universal / mappings).value,
+  (ThisBuild / baseDirectory).value,
+  baseDirectory.value / "LICENSE-binary-java",
+  baseDirectory.value / "NOTICE-binary"
+)
+
+semanticdbEnabled := true
+semanticdbVersion := scalafixSemanticdb.revision
+
+// to check feature warnings
+scalacOptions += "-feature"
+// to check deprecation warnings
+scalacOptions += "-deprecation"
+// to check unused imports
+scalacOptions += "-Ywarn-unused:imports"
+
+conflictManager := ConflictManager.latestRevision
+
+// ensuring no parallel execution of multiple tasks
+concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
+
+// add python as an additional source
+Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "python"
+
+// `amber/src/test/integration` holds Scala specs that exercise both
+// Scala and Python end-to-end (tagged @org.apache.texera.amber.tags.IntegrationTest).
+// Sits next to `src/test/scala`, `src/test/java`, and `src/test/python`.
+// Adding it to Test/unmanagedSourceDirectories means scalafmtCheckAll /
+// scalafixAll --check naturally cover these sources, and the
+// AMBER_TEST_FILTER env var below routes which tagged subset runs.
+Test / unmanagedSourceDirectories += baseDirectory.value / "src" / "test" / "integration"
+
+// `amber/src/bench` holds performance benchmarks (no pass/fail assertion;
+// emit metrics for the github-action-benchmark CI dashboard). Kept out of
+// `src/test/` so reviewers don't conflate "runs in test suite" with "is a
+// test". Same Test-scope wiring as `integration/` above so scalafmt /
+// scalafix still cover it and `sbt Test/runMain` can invoke benches.
+Test / unmanagedSourceDirectories += baseDirectory.value / "src" / "bench" / "scala"
+
+// Lets the amber and amber-integration CI jobs select disjoint subsets without
+// each invocation having to embed a `set Tests.Argument(...)` prefix. See
+// project/TestFilters.scala.
+Test / testOptions ++= TestFilters.integrationSplit(
+  envVar = "AMBER_TEST_FILTER",
+  tag = "org.apache.texera.amber.tags.IntegrationTest"
+)
+
+// Excluding some proto files:
+PB.generate / excludeFilter := "scalapb.proto"
+
+/////////////////////////////////////////////////////////////////////////////
+// Pekko related
+val pekkoVersion = "1.7.0"
+val pekkoDependencies = Seq(
+  "org.apache.pekko" %% "pekko-actor" % pekkoVersion,
+  "org.apache.pekko" %% "pekko-remote" % pekkoVersion,
+  "org.apache.pekko" %% "pekko-cluster" % pekkoVersion,
+  "org.apache.pekko" %% "pekko-cluster-metrics" % pekkoVersion,
+  "org.apache.pekko" %% "pekko-cluster-tools" % pekkoVersion,
+  "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test,
+  "org.apache.pekko" %% "pekko-testkit" % pekkoVersion % Test,
+  "org.apache.pekko" %% "pekko-persistence" % pekkoVersion,
+  "io.kamon" % "sigar-loader" % "1.6.6-rev002",
+  "com.softwaremill.macwire" %% "macros" % "2.6.7" % Provided,
+  "com.softwaremill.macwire" %% "macrospekko" % "2.6.7" % Provided,
+  "com.softwaremill.macwire" %% "util" % "2.6.7",
+  "com.softwaremill.macwire" %% "proxy" % "2.6.7",
+  "org.apache.pekko" %% "pekko-slf4j" % pekkoVersion,
+  "ch.qos.logback" % "logback-classic" % "1.2.13" % Test
+)
+
+// dropwizard web framework
+
+/////////////////////////////////////////////////////////////////////////////
+// DropWizard server related
+val dropwizardVersion = "1.3.23"
+
+val dropwizardDependencies = Seq(
+  "io.dropwizard" % "dropwizard-core" % dropwizardVersion,
+  "io.dropwizard" % "dropwizard-client" % dropwizardVersion,
+  "io.dropwizard" % "dropwizard-auth" % dropwizardVersion,
+  // https://mvnrepository.com/artifact/com.github.toastshaman/dropwizard-auth-jwt
+  "com.github.toastshaman" % "dropwizard-auth-jwt" % "1.1.2-0",
+  "com.github.dirkraft.dropwizard" % "dropwizard-file-assets" % "0.0.2",
+  "io.dropwizard-bundles" % "dropwizard-redirect-bundle" % "1.3.5",
+  "com.liveperson" % "dropwizard-websockets" % "1.3.14",
+  // https://mvnrepository.com/artifact/commons-io/commons-io
+  "commons-io" % "commons-io" % "2.15.1"
+)
+
+
+val jacksonVersion = "2.18.8"
+val mbknorJacksonJsonSchemaDependencies = Seq(
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
+  "javax.validation" % "validation-api" % "2.0.1.Final",
+  "org.slf4j" % "slf4j-api" % "1.7.26",
+  "io.github.classgraph" % "classgraph" % "4.8.184",
+  "ch.qos.logback" % "logback-classic" % "1.2.13" % "test",
+  "com.github.java-json-tools" % "json-schema-validator" % "2.2.14" % "test",
+  "com.fasterxml.jackson.module" % "jackson-module-kotlin" % jacksonVersion % "test",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % jacksonVersion % "test",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % jacksonVersion % "test",
+  "joda-time" % "joda-time" % "2.12.5" % "test",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonVersion % "test",
+  "com.fasterxml.jackson.module" % "jackson-module-jsonSchema" % jacksonVersion,
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion,
+  // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-no-ctor-deser
+  "com.fasterxml.jackson.module" % "jackson-module-no-ctor-deser" % jacksonVersion,
+)
+
+/////////////////////////////////////////////////////////////////////////////
+// Lucene related
+val luceneVersion = "8.7.0"
+val luceneDependencies = Seq(
+  "org.apache.lucene" % "lucene-core" % luceneVersion,
+  "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
+  "org.apache.lucene" % "lucene-queries" % luceneVersion,
+  "org.apache.lucene" % "lucene-memory" % luceneVersion
+)
+
+/////////////////////////////////////////////////////////////////////////////
+// Hadoop related
+val hadoopVersion = "3.5.0"
+val excludeHadoopJersey = ExclusionRule(organization = "com.sun.jersey")
+// Hadoop 3.3.2+ ships jersey-json via the com.github.pjfanning fork; its Jersey 1.x
+// providers break Jersey 2 auto-discovery at startup, so exclude it as well.
+val excludeHadoopJerseyJsonFork = ExclusionRule(organization = "com.github.pjfanning", name = "jersey-json")
+// Hadoop 3.5.0 moved its web stack to Jersey 2.x (org.glassfish.jersey.{core,containers,
+// inject}) plus the glassfish JAXB runtime, istack-commons, and the Jakarta JSP API. This
+// service runs on Dropwizard 1.3.23 (see dropwizardVersion above), whose Jersey 2.25.1
+// provides the AbstractValueFactoryProvider that dropwizard-auth binds against; letting
+// Hadoop's newer Jersey 2.x win the sbt eviction drops that class and breaks auth wiring.
+// Texera uses hadoop only as a filesystem client, so exclude the whole servlet/JAX-RS/JAXB
+// web stack instead.
+val excludeHadoopJersey2Stack = Seq(
+  ExclusionRule(organization = "org.glassfish.jersey.core"),
+  ExclusionRule(organization = "org.glassfish.jersey.containers"),
+  ExclusionRule(organization = "org.glassfish.jersey.inject"),
+  ExclusionRule(organization = "org.glassfish.jaxb"),
+  ExclusionRule(organization = "com.sun.istack"),
+  ExclusionRule(organization = "jakarta.servlet.jsp")
+)
+val excludeHadoopSlf4j = ExclusionRule(organization = "org.slf4j")
+val excludeHadoopJetty = ExclusionRule(organization = "org.eclipse.jetty")
+val excludeHadoopJsp = ExclusionRule(organization = "javax.servlet.jsp")
+val hadoopDependencies = Seq(
+  "org.apache.hadoop" % "hadoop-common" % hadoopVersion excludeAll(
+    (Seq(excludeHadoopJersey, excludeHadoopJerseyJsonFork, excludeHadoopSlf4j, excludeHadoopJsp, excludeHadoopJetty) ++ excludeHadoopJersey2Stack): _*
+  )
+)
+
+/////////////////////////////////////////////////////////////////////////////
+// Google Service related
+val googleServiceDependencies = Seq(
+  "com.google.oauth-client" % "google-oauth-client-jetty" % "1.39.0" exclude("com.google.guava", "guava"),
+  "com.google.api-client" % "google-api-client" % "2.9.0" exclude("com.google.guava", "guava"),
+  "com.sun.mail" % "javax.mail" % "1.6.2"
+)
+
+libraryDependencies ++= pekkoDependencies
+libraryDependencies ++= luceneDependencies
+libraryDependencies ++= dropwizardDependencies
+libraryDependencies ++= mbknorJacksonJsonSchemaDependencies
+libraryDependencies ++= googleServiceDependencies
+libraryDependencies ++= hadoopDependencies
+
+/////////////////////////////////////////////////////////////////////////////
+// protobuf related
+// run the following with sbt to have protobuf codegen
+
+PB.protocVersion := IO.read((ThisBuild / baseDirectory).value / "bin" / "protoc-version.txt").trim
+
+enablePlugins(Fs2Grpc)
+
+Compile / PB.targets := Seq(
+  scalapb.gen(
+    singleLineToProtoString = true
+  ) -> (Compile / sourceManaged).value,
+  // let fs2 compile grpc-related proto, skip other protos in fs2 compilation pipeline.
+  scalapbCodeGenerators.value(1)
+)
+
+libraryDependencies ++= Seq(
+  "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
+)
+// For ScalaPB 0.11.x:
+libraryDependencies += "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.2"
+
+// enable protobuf compilation in Test
+Test / PB.protoSources += PB.externalSourcePath.value
+
+// Regenerate Python betterproto bindings on compile; skipped if protoc is absent.
+val genPythonProto = taskKey[Unit]("Generate Python betterproto bindings from .proto sources.")
+genPythonProto := {
+  val log = streams.value.log
+  val repoRoot = (ThisBuild / baseDirectory).value
+  val script = repoRoot / "bin" / "python-proto-gen.sh"
+  def onPath(bin: String): Boolean =
+    scala.sys.process.Process(Seq("bash", "-c", s"command -v $bin >/dev/null 2>&1")).! == 0
+  if (!onPath("protoc") || !onPath("protoc-gen-python_betterproto")) {
+    log.warn(
+      "protoc or protoc-gen-python_betterproto not found on PATH; skipping Python proto generation. " +
+        "Install protoc and `pip install betterproto[compiler]` before launching a Python worker or running pytest."
+    )
+  } else {
+    val procLogger = scala.sys.process.ProcessLogger(line => log.info(line), line => log.info(line))
+    val exit = scala.sys.process.Process(Seq("bash", script.getAbsolutePath), repoRoot).!(procLogger)
+    if (exit != 0) sys.error(s"python-proto-gen.sh failed with exit code $exit")
+  }
+}
+Compile / compile := (Compile / compile).dependsOn(genPythonProto).value
+
+/////////////////////////////////////////////////////////////////////////////
+// Test related
+// https://mvnrepository.com/artifact/org.scalamock/scalamock
+libraryDependencies += "org.scalamock" %% "scalamock" % "5.2.0" % Test
+// https://mvnrepository.com/artifact/ch.vorburger.mariaDB4j/mariaDB4j
+libraryDependencies += "ch.vorburger.mariaDB4j" % "mariaDB4j" % "2.6.0" % Test
+// https://www.scalatest.org/getting_started_with_fun_suite
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.20" % Test
+// JUnit related dependencies
+libraryDependencies += "junit" % "junit" % "4.13.2" % Test // JUnit dependency for Java tests
+libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test // SBT interface for JUnit
+
+/////////////////////////////////////////////////////////////////////////////
+// Workflow version control related
+// https://mvnrepository.com/artifact/com.flipkart.zjsonpatch/zjsonpatch
+libraryDependencies += "com.flipkart.zjsonpatch" % "zjsonpatch" % "0.4.16"
+
+/////////////////////////////////////////////////////////////////////////////
+// Uncategorized
+
+// https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxjava
+libraryDependencies += "io.reactivex.rxjava3" % "rxjava" % "3.1.12"
+
+// https://mvnrepository.com/artifact/org.postgresql/postgresql
+libraryDependencies += "org.postgresql" % "postgresql" % "42.7.13"
+
+// https://mvnrepository.com/artifact/com.typesafe.scala-logging/scala-logging
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6"
+
+// https://mvnrepository.com/artifact/org.scalactic/scalactic
+libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.20"
+
+// https://mvnrepository.com/artifact/com.github.tototoshi/scala-csv
+libraryDependencies += "com.github.tototoshi" %% "scala-csv" % "1.3.10"
+
+// https://mvnrepository.com/artifact/com.univocity/univocity-parsers
+libraryDependencies += "com.univocity" % "univocity-parsers" % "2.9.1"
+
+// https://mvnrepository.com/artifact/com.konghq/unirest-java
+libraryDependencies += "com.konghq" % "unirest-java" % "3.14.5"
+
+// https://mvnrepository.com/artifact/com.github.marianobarrios/lbmq
+libraryDependencies += "com.github.marianobarrios" % "lbmq" % "0.7.0"
+
+// https://mvnrepository.com/artifact/org.jooq/jooq
+libraryDependencies += "org.jooq" % "jooq" % "3.19.36"
+
+// https://mvnrepository.com/artifact/org.jgrapht/jgrapht-core
+libraryDependencies += "org.jgrapht" % "jgrapht-core" % "1.4.0"
+
+// https://mvnrepository.com/artifact/com.esotericsoftware/kryo
+libraryDependencies += "com.esotericsoftware" % "kryo" % "5.6.2"
+libraryDependencies += "com.esotericsoftware" % "kryo5" % "5.6.0"
+
+// https://mvnrepository.com/artifact/io.altoo/pekko-kryo-serialization
+libraryDependencies += "io.altoo" %% "pekko-kryo-serialization" % "1.5.1"
+
+// https://mvnrepository.com/artifact/io.altoo/scala-kryo-serialization
+libraryDependencies += "io.altoo" %% "scala-kryo-serialization" % "1.5.2"
+
+// https://mvnrepository.com/artifact/com.twitter/util-core
+libraryDependencies += "com.twitter" %% "util-core" % "22.12.0"
+
+// https://mvnrepository.com/artifact/com.typesafe.play/play-json
+libraryDependencies += "com.typesafe.play" %% "play-json" % "2.10.8"
+
+// https://mvnrepository.com/artifact/org.fusesource.leveldbjni/leveldbjni-all
+libraryDependencies += "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8"
+
+// https://mvnrepository.com/artifact/com.github.nscala-time/nscala-time
+libraryDependencies += "com.github.nscala-time" %% "nscala-time" % "2.34.0"
+
+// https://mvnrepository.com/artifact/com.google.guava/guava
+libraryDependencies += "com.google.guava" % "guava" % "29.0-jre"
+
+// https://mvnrepository.com/artifact/org.tukaani/xz
+libraryDependencies += "org.tukaani" % "xz" % "1.9"
+
+// https://mvnrepository.com/artifact/org.jasypt/jasypt
+libraryDependencies += "org.jasypt" % "jasypt" % "1.9.3"
+
+// Jgit library for tracking operator version
+// https://mvnrepository.com/artifact/org.eclipse.jgit/org.eclipse.jgit
+libraryDependencies += "org.eclipse.jgit" % "org.eclipse.jgit" % "5.13.0.202109080827-r"
+
+// https://mvnrepository.com/artifact/org.ehcache/sizeof
+libraryDependencies += "org.ehcache" % "sizeof" % "0.4.4"
+
+// https://mvnrepository.com/artifact/org.mindrot/jbcrypt
+libraryDependencies += "org.mindrot" % "jbcrypt" % "0.4"
+
+// https://mvnrepository.com/artifact/com.github.sisyphsu/dateparser
+libraryDependencies += "com.github.sisyphsu" % "dateparser" % "1.0.11"
+
+// https://mvnrepository.com/artifact/org.apache.commons/commons-vfs2
+// commons-vfs2 pulls hadoop-hdfs-client (HDFS provider), which drags in the Hadoop client
+// stack and, via 3.5.0, the Jersey 2.x/JAXB web stack; exclude it here too.
+libraryDependencies += "org.apache.commons" % "commons-vfs2" % "2.9.0" excludeAll(excludeHadoopJersey2Stack: _*)
+
+// https://mvnrepository.com/artifact/org.apache.commons/commons-jcs3-core
+libraryDependencies += "org.apache.commons" % "commons-jcs3-core" % "3.2.1"
+
+// For supporting MultiDict
+// https://mvnrepository.com/artifact/org.scala-lang.modules/scala-collection-contrib
+libraryDependencies += "org.scala-lang.modules" %% "scala-collection-contrib" % "0.4.0"
+
+// For supporting deepcopy
+// https://mvnrepository.com/artifact/io.github.kostaskougios/cloning
+libraryDependencies += "io.github.kostaskougios" % "cloning" % "1.13.0-jdk8"
+
+

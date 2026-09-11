@@ -1,0 +1,85 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.texera.auth
+
+import com.typesafe.scalalogging.LazyLogging
+import org.apache.texera.dao.jooq.generated.enums.UserRoleEnum
+import org.apache.texera.dao.jooq.generated.tables.pojos.User
+import org.jose4j.jwt.JwtClaims
+import org.jose4j.lang.UnresolvableKeyException
+
+import java.util.Optional
+import scala.util.chaining.scalaUtilChainingOps
+
+/** Single source of truth for converting a verified JWT into a [[SessionUser]].
+  *
+  * Verification reuses [[JwtAuth.jwtConsumer]] (same secret, same clock-skew
+  * config). The claim set extracted here mirrors what [[JwtAuth.jwtClaims]]
+  * writes when issuing a token.
+  */
+object JwtParser extends LazyLogging {
+
+  /** Verify and parse a Bearer token string. */
+  def parseToken(token: String): Optional[SessionUser] = {
+    try {
+      Optional.of(claimsToSessionUser(JwtAuth.jwtConsumer.processToClaims(token)))
+    } catch {
+      case _: UnresolvableKeyException =>
+        logger.error("Invalid JWT Signature")
+        Optional.empty()
+      case e: Exception =>
+        logger.error(s"Failed to parse JWT: ${e.getMessage}")
+        Optional.empty()
+    }
+  }
+
+  /** Build a [[SessionUser]] from already-verified claims. Used by both
+    * [[parseToken]] (which verifies then calls this) and amber's
+    * `UserAuthenticator` (which the toastshaman filter calls after its own
+    * signature verification).
+    */
+  def claimsToSessionUser(claims: JwtClaims): SessionUser = {
+    val userName = claims.getSubject
+    val email = claims.getClaimValue("email", classOf[String])
+    // jose4j returns Long after JSON round-trip but the original setClaim
+    // call writes Integer; widen via Number to handle both cases.
+    val userId = claims.getClaimValue("userId", classOf[Number]).intValue()
+    val role = UserRoleEnum.valueOf(claims.getClaimValue("role").asInstanceOf[String])
+    // This claim was named `googleAvatar` until the column and the value stopped being
+    // Google-specific. Tokens live for `auth.jwt.expiration-in-minutes` (a week by default), so
+    // the old name is still read; the fallback can go once every token predating the rename has
+    // expired.
+    val avatar = Option(claims.getClaimValue("avatar", classOf[String]))
+      .getOrElse(claims.getClaimValue("googleAvatar", classOf[String]))
+    // The `googleId` claim is deliberately written but not read back: nothing server-side
+    // needs it (credentials live in auth_provider), and the only consumer is the frontend,
+    // which reads it straight off the raw token.
+
+    new SessionUser(
+      new User().tap { user =>
+        user.setUid(userId)
+        user.setName(userName)
+        user.setEmail(email)
+        user.setRole(role)
+        user.setAvatar(avatar)
+      }
+    )
+  }
+}

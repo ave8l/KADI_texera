@@ -1,0 +1,137 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+import scala.collection.Seq
+/////////////////////////////////////////////////////////////////////////////
+// Project Settings
+/////////////////////////////////////////////////////////////////////////////
+
+name := "workflow-operator"
+
+
+enablePlugins(JavaAppPackaging)
+
+// Enable semanticdb for Scalafix
+ThisBuild / semanticdbEnabled := true
+ThisBuild / semanticdbVersion := scalafixSemanticdb.revision
+
+// Manage dependency conflicts by always using the latest revision
+ThisBuild / conflictManager := ConflictManager.latestRevision
+
+// Restrict parallel execution of tests to avoid conflicts
+Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
+
+// A test needing more than a bare Python interpreter is tagged, so the amber job
+// excludes it, and amber-integration, which installs amber's requirements files,
+// runs it. The amber job already sets this env var on the step that invokes
+// WorkflowOperator/jacoco, so no workflow change is needed for the exclusion.
+//
+// PythonCodeRawInvalidTextSpec reads the same env var and value directly, to tell
+// a missing package in amber-integration (a defect) from one on a developer's
+// machine (a local-setup fact). Changing the variable or the value here without
+// changing it there leaves that test cancelling in the job meant to fail it.
+Test / testOptions ++= TestFilters.integrationSplit(
+  envVar = "AMBER_TEST_FILTER",
+  tag = "org.apache.texera.amber.operator.tags.IntegrationTest"
+)
+
+/////////////////////////////////////////////////////////////////////////////
+// Compiler Options
+/////////////////////////////////////////////////////////////////////////////
+
+// Scala compiler options
+Compile / scalacOptions ++= Seq(
+  "-feature",                       // Check feature warnings
+  "-deprecation",                   // Check deprecation warnings
+  "-Ywarn-unused:imports"           // Check for unused imports
+)
+
+/////////////////////////////////////////////////////////////////////////////
+// Test-related Dependencies
+/////////////////////////////////////////////////////////////////////////////
+
+libraryDependencies ++= Seq(
+  "org.scalamock" %% "scalamock" % "5.2.0" % Test,                  // ScalaMock
+  "org.scalatest" %% "scalatest" % "3.2.15" % Test,                 // ScalaTest
+  "junit" % "junit" % "4.13.2" % Test,                              // JUnit
+  "com.novocode" % "junit-interface" % "0.11" % Test                // SBT interface for JUnit
+)
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Jackson-related Dependencies
+/////////////////////////////////////////////////////////////////////////////
+
+val jacksonVersion = "2.18.8"
+libraryDependencies ++= Seq(
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,                  // Jackson Databind
+  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion,               // Jackson Annotation
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion,           // Scala Module
+)
+
+// Lucene related, used by the keyword-search operators
+val luceneVersion = "8.7.0"
+libraryDependencies ++= Seq(
+  "org.apache.lucene" % "lucene-core" % luceneVersion,
+  "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
+  "org.apache.lucene" % "lucene-queries" % luceneVersion,
+  "org.apache.lucene" % "lucene-memory" % luceneVersion
+)
+
+// kjetland
+libraryDependencies ++= Seq(
+  "javax.validation" % "validation-api" % "2.0.1.Final",
+  "org.slf4j" % "slf4j-api" % "1.7.26",
+  "io.github.classgraph" % "classgraph" % "4.8.157",
+  "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
+  "com.github.java-json-tools" % "json-schema-validator" % "2.2.14" % "test",
+  "com.fasterxml.jackson.module" % "jackson-module-kotlin" % jacksonVersion % "test",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % jacksonVersion % "test",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % jacksonVersion % "test",
+  "joda-time" % "joda-time" % "2.12.5" % "test",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonVersion % "test",
+  "com.fasterxml.jackson.module" % "jackson-module-jsonSchema" % jacksonVersion,
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion,
+  // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-no-ctor-deser
+  "com.fasterxml.jackson.module" % "jackson-module-no-ctor-deser" % jacksonVersion,
+)
+
+// Arrow 19's transitive deps pull jackson-databind past the 2.18 line that
+// jackson-module-scala is pinned to; force the Jackson core family back to
+// jacksonVersion so the Scala module can initialize.
+dependencyOverrides ++= Seq(
+  "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion,
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
+  "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion
+)
+
+/////////////////////////////////////////////////////////////////////////////
+// Additional Dependencies
+/////////////////////////////////////////////////////////////////////////////
+
+libraryDependencies ++= Seq(
+  "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0",
+  "com.github.tototoshi" %% "scala-csv" % "1.3.10",       // csv parser
+  "com.konghq" % "unirest-java" % "3.14.2",
+  "commons-io" % "commons-io" % "2.15.1",
+  "org.apache.commons" % "commons-compress" % "1.27.1",
+  "org.tukaani" % "xz" % "1.9",
+  "com.univocity" % "univocity-parsers" % "2.9.1",
+  "org.apache.lucene" % "lucene-analyzers-common" % "8.11.4"
+)
+
+libraryDependencies += "io.github.classgraph" % "classgraph" % "4.8.184" % Test

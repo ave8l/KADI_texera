@@ -1,0 +1,166 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import asyncio
+import inspect
+from collections import defaultdict
+from concurrent.futures import Future
+from functools import wraps
+from loguru import logger
+from typing import Dict, TypeVar, Callable, Any, Coroutine
+
+from core.architecture.managers.context import Context
+from core.models.internal_queue import InternalQueue, DCMElement
+from core.util import set_one_of
+from proto.org.apache.texera.amber.core import ActorVirtualIdentity, ChannelIdentity
+from proto.org.apache.texera.amber.engine.architecture.rpc import (
+    AsyncRpcContext,
+    ReturnInvocation,
+    ControlReturn,
+    ControlInvocation,
+    CoordinatorServiceStub,
+    ControlRequest,
+)
+from proto.org.apache.texera.amber.engine.common import DirectControlMessagePayloadV2
+
+R = TypeVar("R")
+
+
+def async_run(func: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> Any:
+        try:
+            # Try to get the current running loop
+            if asyncio.get_running_loop():
+                return func(*args, **kwargs)
+        except RuntimeError:
+            # If there is no running loop, use asyncio.run to start one
+            return asyncio.run(func(*args, **kwargs))
+
+    return wrapper
+
+
+class AsyncRPCClient:
+    def __init__(self, output_queue: InternalQueue, context: Context):
+        self._context = context
+        self._output_queue = output_queue
+        self._send_sequences: Dict[ActorVirtualIdentity, int] = defaultdict(int)
+        self._unfulfilled_promises: Dict[(ActorVirtualIdentity, int), Future] = dict()
+        # TODO: is this correct?
+        self._coordinator_service_stub = CoordinatorServiceStub("")
+        rpc_context = AsyncRpcContext(
+            ActorVirtualIdentity(self._context.worker_id),
+            ActorVirtualIdentity(name="COORDINATOR"),
+        )
+        self._coordinator_service_stub._unary_unary = AsyncRPCClient._assign_context(
+            self, rpc_context
+        )
+        # Apply async_run to all async methods of the coordinator service stub
+        self._wrap_all_async_methods_with_async_run(self._coordinator_service_stub)
+
+    def _assign_context(
+        self, rpc_context: AsyncRpcContext
+    ) -> Callable[..., Coroutine[Any, Any, Future]]:
+        """Creates an async RPC wrapper function with a context"""
+
+        async def wrapper(
+            route: str, request, response_type, timeout, deadline, metadata
+        ):
+            to = rpc_context.receiver
+            control_command = ControlInvocation(
+                method_name=route.split("/")[-1],  # Extract the method name for RPC
+                command=set_one_of(ControlRequest, request),
+                context=rpc_context,
+                command_id=self._send_sequences[to],
+            )
+            payload = set_one_of(DirectControlMessagePayloadV2, control_command)
+            self._output_queue.put(
+                DCMElement(
+                    tag=ChannelIdentity(
+                        ActorVirtualIdentity(self._context.worker_id), to, True
+                    ),
+                    payload=payload,
+                )
+            )
+            return self._create_future(to)
+
+        return wrapper
+
+    def _wrap_all_async_methods_with_async_run(self, instance: Any) -> None:
+        """Decorates all async methods of an instance with async_run."""
+        for attr_name in dir(instance):
+            attr = getattr(instance, attr_name)
+            if inspect.iscoroutinefunction(attr):
+                setattr(instance, attr_name, async_run(attr))
+
+    def coordinator_stub(self) -> CoordinatorServiceStub:
+        """
+        Returns a proxy for interacting with the coordinator interface.
+        """
+        return self._coordinator_service_stub
+
+    def _create_future(self, to: ActorVirtualIdentity) -> Future:
+        """
+        Create a promise for the target actor, recording the CommandInvocations sent
+        with a sequence, so that the promise can be fulfilled once the
+        ReturnInvocation is received for the CommandInvocation.
+
+        :param to: ActorVirtualIdentity, the receiver.
+        """
+        future = Future()
+        self._unfulfilled_promises[(to, self._send_sequences[to])] = future
+        self._send_sequences[to] += 1
+        return future
+
+    def receive(
+        self, from_: ChannelIdentity, return_invocation: ReturnInvocation
+    ) -> None:
+        """
+        Receive the ReturnInvocation from the given actor.
+        :param from_: ChannelIdentity, the sender.
+        :param return_invocation: ReturnInvocationV2, the return to be processed.
+        """
+        command_id = return_invocation.command_id
+        self._fulfill_promise(from_, command_id, return_invocation.return_value)
+
+    def _fulfill_promise(
+        self,
+        from_: ChannelIdentity,
+        command_id: int,
+        control_return: ControlReturn,
+    ) -> None:
+        """
+        Fulfill the promise with the CommandInvocation, referenced by the sequence id
+        with this sender of ReturnInvocation.
+
+        :param from_: ChannelIdentity, the sender.
+        :param command_id: int, paired with from_ to uniquely identify an unfulfilled
+            future.
+        :param control_return: ControlReturnV2m, to be used to fulfill the promise.
+        """
+
+        future: Future = self._unfulfilled_promises.get(
+            (from_.from_worker_id, command_id)
+        )
+        if future is not None:
+            future.set_result(control_return)
+            del self._unfulfilled_promises[(from_.from_worker_id, command_id)]
+        else:
+            logger.warning(
+                f"received unknown ControlReturn {control_return}, no corresponding"
+                " ControlCommand found."
+            )
