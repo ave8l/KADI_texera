@@ -58,6 +58,18 @@ Callarse dos segundos. Dejar que vean la caja vacía y el mensaje.
 
 > "It doesn't just find it. It places it."
 
+**Paso 5 — el hover, sin cambiar de tema.** Conectarlo y dejar el cursor encima
+del operador. Sale la tarjeta sola.
+
+`[CAPTURA 10 — la tarjeta sobre Count per department, con from y to]`
+
+> "And once it's on the canvas, the canvas explains it. What it does — and what
+> it's wired to, right here in this workflow."
+
+**Señalar las dos líneas de abajo:**
+
+> "That part isn't a guess. It's read from the graph, so it updates as you wire."
+
 ---
 
 ## 3 · Cómo funciona — 30 s · habla B
@@ -150,6 +162,12 @@ comparison stays linear.
 Cosine similarity between your sentence and the operator's text. It is **not** an
 accuracy percentage. What matters is the gap between the first and the second:
 0.71 against 0.52 is a confident answer, 0.59 against 0.55 is a tie.
+
+**"Where does the hover text come from?"**
+Two places, and neither is a model. The description is Texera's own metadata,
+which the palette already had and the canvas never showed. The connections are
+read from the workflow graph, so they cannot be wrong and they update live as
+you wire.
 
 **"Can I still use the old search?"**
 Yes. The toggle switches between them, and if the model ever failed to load it

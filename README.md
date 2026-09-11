@@ -41,6 +41,43 @@ Design decisions and what we tried that failed:
 
 ---
 
+## Operator context on hover
+
+The palette explains an operator until you drop it. After that the canvas shows
+a name and nothing else, and a renamed operator shows not even that — so reading
+someone else's workflow means clicking every box in turn.
+
+Hovering an operator now gives its group and description together with **its
+neighbours in this workflow**:
+
+```
+Count per department
+Aggregate
+Calculate different types of aggregation values
+──────────────────────────────────────────────
+←  from  Drop unknown
+→  to    Busiest first, Share of tickets
+```
+
+The wiring is the half that cannot be read off the operator alone, and it comes
+from the workflow graph rather than a model: it cannot be wrong, and it updates
+as you connect and disconnect — including while the card is open, which is when
+it matters, since drawing a link never takes the cursor off the operator.
+
+It stays quiet while the Performance overlay is on, which already owns the
+hover, and still renders for an operator whose type is missing from the metadata.
+
+## Try it
+
+[`KADI/workflows/`](KADI/workflows/) holds a demo workflow. Import it from the
+Workflows page with the upload button next to *Create Workflow*.
+
+It sources its rows from a Text Input rather than a file, so it runs on a fresh
+instance with no dataset uploaded. `Count per department` deliberately feeds two
+branches, which is the operator worth hovering.
+
+---
+
 ## How it was built
 
 The palette's search already existed. We left it in place and added a second
@@ -67,6 +104,10 @@ routes each keystroke to whichever ranker is active. Queries carry a sequence
 number, so a slow answer for an earlier keystroke cannot overwrite a newer one,
 and any failure to load the model falls back to the keyword search rather than
 leaving the box unresponsive.
+
+**4 · The hover card.** `workflow-editor.component.ts` builds it from the
+operator's schema plus the graph's links, and subscribes to link, rename and
+delete streams so an open card follows the graph instead of the cursor.
 
 Nothing in the Texera backend was touched.
 
