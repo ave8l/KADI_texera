@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { Component } from "@angular/core";
+import { ChangeDetectorRef, Component } from "@angular/core";
 import Fuse from "fuse.js";
 import { OperatorMetadataService } from "../../../service/operator-metadata/operator-metadata.service";
 import { GroupInfo, OperatorSchema } from "../../../types/operator-schema.interface";
@@ -38,6 +38,7 @@ import { OperatorLabelComponent } from "./operator-label/operator-label.componen
 import { NzCollapseComponent, NzCollapsePanelComponent } from "ng-zorro-antd/collapse";
 import { NzSwitchComponent } from "ng-zorro-antd/switch";
 import { SemanticOperatorSearchService } from "../../../service/semantic-search/semantic-operator-search.service";
+import { NextOperatorService } from "../../../service/next-operator/next-operator.service";
 
 @UntilDestroy()
 @Component({
@@ -78,6 +79,11 @@ export class OperatorMenuComponent {
   // Relevance per suggested operator, so the palette can show why it ranked.
   public semanticScores = new Map<string, number>();
 
+  // The operator the canvas has selected, and what is worth adding after it.
+  public selectedOperatorName = "";
+  public nextSuggestions: OperatorSchema[] = [];
+  private selectedOperatorId: string | null = null;
+
   // Every operator the palette can offer, kept for the semantic ranker.
   private searchableOperators: ReadonlyArray<OperatorSchema> = [];
   // Monotonic id of the newest query, so a slow response for an older
@@ -99,7 +105,9 @@ export class OperatorMenuComponent {
     private workflowActionService: WorkflowActionService,
     private workflowUtilService: WorkflowUtilService,
     private dragDropService: DragDropService,
-    private semanticSearchService: SemanticOperatorSearchService
+    private semanticSearchService: SemanticOperatorSearchService,
+    private nextOperatorService: NextOperatorService,
+    private changeDetectorRef: ChangeDetectorRef
   ) {
     // clear the search box if an operator is dropped from operator search box
     this.dragDropService.operatorDropStream.pipe(untilDestroyed(this)).subscribe(() => {
@@ -132,6 +140,79 @@ export class OperatorMenuComponent {
         this.fuse.setCollection(ops);
         this.searchableOperators = ops;
       });
+
+    this.workflowActionService
+      .getJointGraphWrapper()
+      .getJointOperatorHighlightStream()
+      .pipe(untilDestroyed(this))
+      .subscribe(ids => this.updateSuggestions(ids));
+  }
+
+  /**
+   * Offers a next step for a single selected operator. A multi-selection has no
+   * one "after", and an empty selection nothing to follow, so both clear.
+   */
+  private updateSuggestions(selectedIds: readonly string[]): void {
+    const graph = this.workflowActionService.getTexeraGraph();
+    if (selectedIds.length !== 1 || !graph.hasOperator(selectedIds[0])) {
+      this.selectedOperatorId = null;
+      this.selectedOperatorName = "";
+      this.nextSuggestions = [];
+      this.changeDetectorRef.detectChanges();
+      return;
+    }
+
+    const operatorId = selectedIds[0];
+    const operator = graph.getOperator(operatorId);
+    const schema = this.searchableOperators.find(s => s.operatorType === operator.operatorType);
+    if (schema === undefined) {
+      this.selectedOperatorId = null;
+      this.nextSuggestions = [];
+      return;
+    }
+
+    this.selectedOperatorId = operatorId;
+    this.selectedOperatorName = operator.customDisplayName ?? schema.additionalMetadata.userFriendlyName;
+
+    this.nextOperatorService.suggestionsFor(schema.additionalMetadata.operatorGroupName).then(suggestions => {
+      // The selection may have moved on while the rules were loading.
+      if (this.selectedOperatorId === operatorId) {
+        this.nextSuggestions = suggestions;
+        this.changeDetectorRef.detectChanges();
+      }
+    });
+  }
+
+  /**
+   * Places a suggested operator to the right of the selected one and wires them
+   * together, as one undoable step — the point is to skip the search entirely.
+   */
+  public addNext(schema: OperatorSchema): void {
+    const operatorId = this.selectedOperatorId;
+    if (operatorId === null || !this.canModify) {
+      return;
+    }
+
+    const newOperator = this.workflowUtilService.getNewOperatorPredicate(schema.operatorType);
+    const anchor = this.workflowActionService.getJointGraphWrapper().getElementPosition(operatorId);
+    const position = { x: anchor.x + 220, y: anchor.y };
+
+    const source = this.workflowActionService.getTexeraGraph().getOperator(operatorId).outputPorts[0];
+    const target = newOperator.inputPorts[0];
+    // A source operator has no input and a sink no output; without both ends
+    // there is nothing to connect, so place it and let the user wire it.
+    const links =
+      source && target
+        ? [
+            {
+              linkID: this.workflowUtilService.getLinkRandomUUID(),
+              source: { operatorID: operatorId, portID: source.portID },
+              target: { operatorID: newOperator.operatorID, portID: target.portID },
+            },
+          ]
+        : [];
+
+    this.workflowActionService.addOperatorsAndLinks([{ op: newOperator, pos: position }], links);
   }
 
   /**

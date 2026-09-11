@@ -1,0 +1,45 @@
+{
+  "_README": [
+    "What a user typically reaches for after an operator of each group.",
+    "",
+    "Keyed by operatorGroupName; values are userFriendlyName, exactly as the",
+    "palette shows them. Order matters — the first entry is offered first.",
+    "",
+    "Groups that end a workflow (charts, visualisations) map to an empty list,",
+    "which is a statement rather than an omission: nothing follows a chart.",
+    "",
+    "Names that match no operator are reported in the browser console."
+  ],
+
+  "Data Input": ["Filter", "Projection", "Type Casting"],
+  "Database Connector": ["Filter", "Projection", "Aggregate"],
+  "External API": ["Unnest String", "Projection", "Filter"],
+
+  "Data Cleaning": ["Aggregate", "Sort", "Hash Join"],
+  "Search": ["Projection", "Aggregate", "Distinct"],
+  "Join": ["Projection", "Filter", "Aggregate"],
+  "Set": ["Distinct", "Aggregate", "Sort"],
+  "Sort": ["Limit", "Bar Chart", "Tables Plot"],
+  "Aggregate": ["Sort", "Bar Chart", "Pie Chart"],
+  "Utilities": ["Filter", "Projection", "Aggregate"],
+
+  "Python": ["Filter", "Projection", "Bar Chart"],
+  "R": ["Filter", "Projection", "Bar Chart"],
+  "Java": ["Filter", "Projection", "Bar Chart"],
+
+  "Sklearn Training": ["Sklearn Prediction", "Sklearn Testing"],
+  "Sklearn": ["Machine Learning Scorer", "Scatter Plot"],
+  "Advanced Sklearn": ["Machine Learning Scorer", "Scatter Plot"],
+  "Machine Learning General": ["Tables Plot", "Bar Chart"],
+  "Hugging Face": ["Aggregate", "Filter", "Word Cloud"],
+
+  "Control Block": ["Filter", "Projection"],
+
+  "Basic": [],
+  "Scientific": [],
+  "Statistical": [],
+  "Financial": [],
+  "Media": [],
+  "Advanced": [],
+  "Visualization": []
+}

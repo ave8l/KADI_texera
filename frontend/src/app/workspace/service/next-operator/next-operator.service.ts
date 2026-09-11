@@ -1,0 +1,81 @@
+/**
+ * Suggests what to add after the operator the user has selected.
+ *
+ * Finding the next step is a different question from finding an operator by
+ * name, and the semantic search cannot answer it: embeddings measure how alike
+ * two things are, so asking what follows `Sort` returns `Sort Partitions` and
+ * `Stable Merge Sort` — the operators most like Sort, which are precisely the
+ * ones nobody wants next. Sequence is not similarity.
+ *
+ * So the order comes from a table instead, keyed by the group an operator
+ * belongs to. Twenty-six groups cover all 166 operators, the reasoning is
+ * inspectable, and it cannot invent an operator that does not exist.
+ */
+import { Injectable } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { firstValueFrom } from "rxjs";
+import { OperatorSchema } from "../../types/operator-schema.interface";
+import { OperatorMetadataService } from "../operator-metadata/operator-metadata.service";
+
+const RULES_URL = "assets/next-operator-rules.json";
+
+@Injectable({ providedIn: "root" })
+export class NextOperatorService {
+  private rules?: Record<string, string[]>;
+  private operators: ReadonlyArray<OperatorSchema> = [];
+  private loading?: Promise<void>;
+
+  constructor(
+    private http: HttpClient,
+    private operatorMetadataService: OperatorMetadataService
+  ) {}
+
+  /**
+   * The operators worth adding after `afterGroup`, as schemas ready to place.
+   * Empty for a group that ends a workflow, and empty until the table loads.
+   */
+  public async suggestionsFor(afterGroup: string): Promise<OperatorSchema[]> {
+    await this.ready();
+    const names = this.rules?.[afterGroup] ?? [];
+    return names
+      .map(name => this.schemaByName(name))
+      .filter((schema): schema is OperatorSchema => schema !== undefined);
+  }
+
+  private ready(): Promise<void> {
+    if (!this.loading) {
+      this.loading = this.load();
+    }
+    return this.loading;
+  }
+
+  private async load(): Promise<void> {
+    // The catalogue is what turns a name in the table into something placeable,
+    // so both have to be in hand before any suggestion can be made.
+    const [raw, metadata] = await Promise.all([
+      firstValueFrom(this.http.get<Record<string, unknown>>(RULES_URL)),
+      firstValueFrom(this.operatorMetadataService.getOperatorMetadata()),
+    ]);
+    this.operators = metadata.operators;
+    const rules: Record<string, string[]> = {};
+    for (const [group, value] of Object.entries(raw)) {
+      if (!group.startsWith("_") && Array.isArray(value)) {
+        rules[group] = value as string[];
+      }
+    }
+    this.rules = rules;
+
+    // A typo in the table silently costs a suggestion, which is hard to notice
+    // and easy to say out loud.
+    const unknown = Object.values(rules)
+      .flat()
+      .filter(name => this.schemaByName(name) === undefined);
+    if (unknown.length > 0) {
+      console.warn(`next-operator-rules.json names operators that do not exist: ${[...new Set(unknown)].join(", ")}`);
+    }
+  }
+
+  private schemaByName(userFriendlyName: string): OperatorSchema | undefined {
+    return this.operators.find(schema => schema.additionalMetadata.userFriendlyName === userFriendlyName);
+  }
+}
