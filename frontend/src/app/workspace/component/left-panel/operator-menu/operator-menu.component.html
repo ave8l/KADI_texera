@@ -19,7 +19,7 @@
 
 <div id="search-box">
   <input
-    placeholder="search operator"
+    [placeholder]="semanticEnabled ? 'describe what you want to do' : 'search operator'"
     nz-input
     [(ngModel)]="searchInputValue"
     (input)="onInput($event)"
@@ -34,8 +34,27 @@
       [nzLabel]="option.additionalMetadata.userFriendlyName"
       [nzDisabled]="! canModify">
       <texera-operator-label [operator]="option"></texera-operator-label>
+      <span
+        *ngIf="scoreLabel(option) as score"
+        class="semantic-score"
+        title="relevance">
+        {{ score }}
+      </span>
     </nz-auto-option>
   </nz-autocomplete>
+
+  <div class="semantic-toggle">
+    <nz-switch
+      nzSize="small"
+      [(ngModel)]="semanticEnabled"
+      (ngModelChange)="onSemanticToggle()"></nz-switch>
+    <span class="semantic-toggle-label">search by meaning</span>
+    <span
+      *ngIf="semanticLoading"
+      class="semantic-toggle-status"
+      >loading model…</span
+    >
+  </div>
 </div>
 
 <div id="spacer"></div>

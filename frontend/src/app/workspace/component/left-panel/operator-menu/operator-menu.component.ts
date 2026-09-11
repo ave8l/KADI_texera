@@ -33,9 +33,11 @@ import {
 import { NzSpaceCompactItemDirective } from "ng-zorro-antd/space";
 import { NzInputDirective } from "ng-zorro-antd/input";
 import { FormsModule } from "@angular/forms";
-import { NgFor, NgTemplateOutlet } from "@angular/common";
+import { NgFor, NgIf, NgTemplateOutlet } from "@angular/common";
 import { OperatorLabelComponent } from "./operator-label/operator-label.component";
 import { NzCollapseComponent, NzCollapsePanelComponent } from "ng-zorro-antd/collapse";
+import { NzSwitchComponent } from "ng-zorro-antd/switch";
+import { SemanticOperatorSearchService } from "../../../service/semantic-search/semantic-operator-search.service";
 
 @UntilDestroy()
 @Component({
@@ -49,11 +51,13 @@ import { NzCollapseComponent, NzCollapsePanelComponent } from "ng-zorro-antd/col
     NzAutocompleteTriggerDirective,
     NzAutocompleteComponent,
     NgFor,
+    NgIf,
     NzAutocompleteOptionComponent,
     OperatorLabelComponent,
     NgTemplateOutlet,
     NzCollapseComponent,
     NzCollapsePanelComponent,
+    NzSwitchComponent,
   ],
 })
 export class OperatorMenuComponent {
@@ -66,6 +70,19 @@ export class OperatorMenuComponent {
   public autocompleteOptions: OperatorSchema[] = [];
 
   public canModify = true;
+
+  // Rank by meaning instead of by name. Off falls back to the fuse.js search.
+  public semanticEnabled = true;
+  // True while the embedding model is downloading on first use.
+  public semanticLoading = false;
+  // Relevance per suggested operator, so the palette can show why it ranked.
+  public semanticScores = new Map<string, number>();
+
+  // Every operator the palette can offer, kept for the semantic ranker.
+  private searchableOperators: ReadonlyArray<OperatorSchema> = [];
+  // Monotonic id of the newest query, so a slow response for an older
+  // keystroke cannot overwrite the results of a newer one.
+  private latestQueryId = 0;
 
   // fuzzy search using fuse.js. See parameters in options at https://fusejs.io/
   public fuse = new Fuse([] as ReadonlyArray<OperatorSchema>, {
@@ -81,7 +98,8 @@ export class OperatorMenuComponent {
     private operatorMetadataService: OperatorMetadataService,
     private workflowActionService: WorkflowActionService,
     private workflowUtilService: WorkflowUtilService,
-    private dragDropService: DragDropService
+    private dragDropService: DragDropService,
+    private semanticSearchService: SemanticOperatorSearchService
   ) {
     // clear the search box if an operator is dropped from operator search box
     this.dragDropService.operatorDropStream.pipe(untilDestroyed(this)).subscribe(() => {
@@ -112,21 +130,71 @@ export class OperatorMenuComponent {
           value.sort((a, b) => a.operatorType.localeCompare(b.operatorType));
         });
         this.fuse.setCollection(ops);
+        this.searchableOperators = ops;
       });
   }
 
   /**
-   * create the search results observable
-   * whenever the search box text is changed, perform the search using fuse.js
+   * Runs a search whenever the box changes, through whichever ranker is active.
    */
   onInput(e: Event): void {
-    const v = (e.target as HTMLInputElement).value;
-    if (v === null || v.trim().length === 0) {
+    this.runSearch((e.target as HTMLInputElement).value);
+  }
+
+  /**
+   * Re-runs the current query when the user flips the ranker, so switching
+   * modes shows the difference without having to retype.
+   */
+  onSemanticToggle(): void {
+    this.runSearch(this.searchInputValue);
+  }
+
+  /** Relevance of a suggestion, formatted for display, or undefined if ranked by keyword. */
+  public scoreLabel(operator: OperatorSchema): string | undefined {
+    const score = this.semanticScores.get(operator.operatorType);
+    return score === undefined ? undefined : score.toFixed(2);
+  }
+
+  private runSearch(query: string): void {
+    const queryId = ++this.latestQueryId;
+
+    if (query === null || query.trim().length === 0) {
       this.autocompleteOptions = [];
+      this.semanticScores.clear();
+      return;
     }
-    this.autocompleteOptions = this.fuse.search(v).map(item => {
-      return item.item;
-    });
+
+    if (!this.semanticEnabled) {
+      this.semanticScores.clear();
+      this.autocompleteOptions = this.fuse.search(query).map(item => item.item);
+      return;
+    }
+
+    // The first semantic query pays for the model download; say so rather than
+    // leaving the palette looking broken.
+    this.semanticLoading = !this.semanticSearchService.isReady();
+
+    this.semanticSearchService
+      .search(query, this.searchableOperators)
+      .then(hits => {
+        // A newer keystroke already answered — drop this stale result.
+        if (queryId !== this.latestQueryId) {
+          return;
+        }
+        this.semanticScores = new Map(hits.map(hit => [hit.schema.operatorType, hit.score]));
+        this.autocompleteOptions = hits.map(hit => hit.schema);
+        this.semanticLoading = false;
+      })
+      .catch(() => {
+        if (queryId !== this.latestQueryId) {
+          return;
+        }
+        // Anything from a failed model download to a corrupt index lands here.
+        // Degrade to the keyword search rather than leaving the box dead.
+        this.semanticLoading = false;
+        this.semanticScores.clear();
+        this.autocompleteOptions = this.fuse.search(query).map(item => item.item);
+      });
   }
 
   /**

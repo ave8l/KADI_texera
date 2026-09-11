@@ -56,3 +56,26 @@
 #spacer {
   margin-top: 32px;
 }
+
+.semantic-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.semantic-toggle-status {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+/* Sits at the far end of a suggestion row, so the ranked list reads as ranked. */
+.semantic-score {
+  float: right;
+  margin-left: 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 0.45);
+}
