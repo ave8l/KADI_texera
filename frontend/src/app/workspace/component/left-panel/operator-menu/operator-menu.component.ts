@@ -225,6 +225,11 @@ export class OperatorMenuComponent {
         : [];
 
     this.workflowActionService.addOperatorsAndLinks([{ op: newOperator, pos: position }], links);
+
+    // Adding an operator leaves nothing selected, which would close this panel
+    // after a single use. Selecting what was just placed keeps the chain going:
+    // the panel immediately offers what comes after it.
+    this.workflowActionService.getJointGraphWrapper().highlightOperators(newOperator.operatorID);
   }
 
   /**
