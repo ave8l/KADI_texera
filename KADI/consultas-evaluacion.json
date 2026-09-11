@@ -1,0 +1,832 @@
+[
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Adaptive Boosting",
+    "query": "Train a boosted model that combines many weak learners"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Bagging",
+    "query": "Train an ensemble model by averaging several bootstrapped models"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Bernoulli Naive Bayes",
+    "query": "Train a Naive Bayes model for binary features"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Complement Naive Bayes",
+    "query": "Train a Naive Bayes classifier that handles imbalanced text classes well"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Decision Tree",
+    "query": "Train a decision tree to classify my records"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Dummy Classifier",
+    "query": "Create a baseline model to compare my real model against"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Extra Tree",
+    "query": "Train a single extremely randomized tree"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Extra Trees",
+    "query": "Train an ensemble of extremely randomized trees"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Gaussian Naive Bayes",
+    "query": "Train a Naive Bayes model assuming normally distributed features"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Gradient Boosting",
+    "query": "Train a gradient boosted trees model"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: K-nearest Neighbors",
+    "query": "Train a model that classifies based on nearby examples"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Linear Perceptron",
+    "query": "Train a simple linear perceptron classifier"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Linear Regression",
+    "query": "Train a model to predict a continuous number"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Linear Support Vector Machine",
+    "query": "Train a linear SVM classifier"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Logistic Regression",
+    "query": "Train a model to predict a yes/no outcome"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Logistic Regression Cross Validation",
+    "query": "Train a logistic regression model that automatically tunes regularization via cross-validation"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Multi-layer Perceptron",
+    "query": "Train a small neural network on my dataset"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Multinomial Naive Bayes",
+    "query": "Train a Naive Bayes classifier for word counts or text data"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Nearest Centroid",
+    "query": "Train a classifier based on the closest class average"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Passive Aggressive",
+    "query": "Train an online model that updates aggressively on mistakes"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Probability Calibration",
+    "query": "Calibrate my classifier so its confidence scores reflect true probabilities"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Random Forest",
+    "query": "Train a random forest model on my dataset"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Ridge Regression",
+    "query": "Train a linear regression model with L2 regularization"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Ridge Regression Cross Validation",
+    "query": "Train a ridge regression model that auto-selects the best regularization strength"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Stochastic Gradient Descent",
+    "query": "Train a model incrementally using gradient descent"
+  },
+  {
+    "group": "Sklearn Training",
+    "operator": "Training: Support Vector Machine",
+    "query": "Train an SVM classifier on my data"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Adaptive Boosting",
+    "query": "Use an AdaBoost model to classify new records"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Bagging",
+    "query": "Apply a bagging ensemble to make predictions"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Bernoulli Naive Bayes",
+    "query": "Apply a Bernoulli Naive Bayes model to binary data"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Complement Naive Bayes",
+    "query": "Apply a Naive Bayes model suited for imbalanced text"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Decision Tree",
+    "query": "Apply a decision tree model to new records"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Dummy Classifier",
+    "query": "Generate baseline predictions for comparison"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Extra Tree",
+    "query": "Apply a single randomized tree for prediction"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Extra Trees",
+    "query": "Apply an extremely randomized trees ensemble"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Gaussian Naive Bayes",
+    "query": "Apply a Gaussian Naive Bayes model for prediction"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Gradient Boosting",
+    "query": "Score new data with a gradient boosted model"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "K-nearest Neighbors",
+    "query": "Classify a record based on its nearest neighbors"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Linear Perceptron",
+    "query": "Apply a linear perceptron model to classify data"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Linear Regression",
+    "query": "Apply a linear regression model to predict values"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Linear Support Vector Machine",
+    "query": "Apply a linear SVM model to classify data"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Logistic Regression",
+    "query": "Apply a logistic regression model to predict probabilities"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Logistic Regression Cross Validation",
+    "query": "Apply a cross-validated logistic regression model"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Multi-layer Perceptron",
+    "query": "Apply a neural network model to my data"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Multinomial Naive Bayes",
+    "query": "Apply a Naive Bayes text classifier"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Nearest Centroid",
+    "query": "Classify data based on distance to class centroids"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Passive Aggressive",
+    "query": "Apply an online passive-aggressive classifier"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Probability Calibration",
+    "query": "Adjust a model's output probabilities to be better calibrated"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Random Forest",
+    "query": "Apply a random forest model to classify new records"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Ridge Regression",
+    "query": "Apply a ridge regression model to predict values"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Ridge Regression Cross Validation",
+    "query": "Apply a cross-validated ridge regression model"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Sklearn Prediction",
+    "query": "Generate predictions from an already trained model"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Sklearn Testing",
+    "query": "Evaluate a trained model's accuracy and other metrics"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Stochastic Gradient Descent",
+    "query": "Apply a model trained with stochastic gradient descent"
+  },
+  {
+    "group": "Sklearn",
+    "operator": "Support Vector Machine",
+    "query": "Apply an SVM model to classify new records"
+  },
+  {
+    "group": "Advanced Sklearn",
+    "operator": "KNN Classifier",
+    "query": "Classify data points by their k nearest neighbors"
+  },
+  {
+    "group": "Advanced Sklearn",
+    "operator": "KNN Regressor",
+    "query": "Predict a numeric value from the average of nearby examples"
+  },
+  {
+    "group": "Advanced Sklearn",
+    "operator": "SVM Classifier",
+    "query": "Classify data using a support vector machine"
+  },
+  {
+    "group": "Advanced Sklearn",
+    "operator": "SVM Regressor",
+    "query": "Predict a continuous value using a support vector machine"
+  },
+  {
+    "group": "Basic",
+    "operator": "Bar Chart",
+    "query": "Show my data as a bar chart"
+  },
+  {
+    "group": "Basic",
+    "operator": "Bubble Chart",
+    "query": "Visualize three variables where the third controls bubble size"
+  },
+  {
+    "group": "Basic",
+    "operator": "Dot Plot",
+    "query": "Show data points along a single axis"
+  },
+  {
+    "group": "Basic",
+    "operator": "Dumbbell Plot",
+    "query": "Compare two values per category with a connecting line"
+  },
+  {
+    "group": "Basic",
+    "operator": "Figure Factory Table",
+    "query": "Display my results as a formatted table"
+  },
+  {
+    "group": "Basic",
+    "operator": "Filled Area Plot",
+    "query": "Show cumulative values over time with a shaded area"
+  },
+  {
+    "group": "Basic",
+    "operator": "Gantt Chart",
+    "query": "Show a project timeline with task durations"
+  },
+  {
+    "group": "Basic",
+    "operator": "Hierarchy Chart",
+    "query": "Visualize a parent-child hierarchy in my data"
+  },
+  {
+    "group": "Basic",
+    "operator": "Icicle Chart",
+    "query": "Show nested categories from root to leaves as stacked bars"
+  },
+  {
+    "group": "Basic",
+    "operator": "Line Chart",
+    "query": "Plot a trend over time"
+  },
+  {
+    "group": "Basic",
+    "operator": "Pie Chart",
+    "query": "Show proportions of categories as a pie chart"
+  },
+  {
+    "group": "Basic",
+    "operator": "Range Slider",
+    "query": "Let me interactively filter a numeric range"
+  },
+  {
+    "group": "Basic",
+    "operator": "Sankey Diagram",
+    "query": "Visualize how quantities flow between stages"
+  },
+  {
+    "group": "Basic",
+    "operator": "Scatter Plot",
+    "query": "Plot two numeric variables against each other"
+  },
+  {
+    "group": "Basic",
+    "operator": "Tables Plot",
+    "query": "Display my results as a table visualization"
+  },
+  {
+    "group": "Basic",
+    "operator": "Time Series Plot",
+    "query": "Visualize how a metric changes over time"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Carpet Plot",
+    "query": "Show how a variable changes across two other variables"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Contour Plot",
+    "query": "Show elevation or gradient variation as contour lines"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Dendrogram",
+    "query": "Show hierarchical clustering as a tree diagram"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Heatmap",
+    "query": "Visualize intensity of values using colors"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Network Graph",
+    "query": "Visualize connections between entities as a graph"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Parallel Coordinates Plot",
+    "query": "Compare many variables at once with parallel axes"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Polar Chart",
+    "query": "Plot data using angle and radius"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Quiver Plot",
+    "query": "Visualize vector directions and magnitudes on a grid"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Radar Chart",
+    "query": "Compare multiple metrics for an item in a spider chart"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Radar Plot",
+    "query": "Show multivariate data on a circular plot"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Ternary Contour",
+    "query": "Show how a value changes across mixtures of three components"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Ternary Plot",
+    "query": "Plot data with three proportions that sum to 100 percent"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Volcano Plot",
+    "query": "Visualize statistical significance versus effect size for many measurements"
+  },
+  {
+    "group": "Scientific",
+    "operator": "Wind Rose Chart",
+    "query": "Visualize wind speed and direction distribution"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Box/Violin Plot",
+    "query": "Show the distribution and spread of a numeric variable across groups"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Continuous Error Bands",
+    "query": "Show a trend line with a shaded uncertainty range around it"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Empirical Cumulative Distribution Plot",
+    "query": "Show what percentage of my data falls below each value"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Histogram",
+    "query": "Show the frequency distribution of a numeric column"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Histogram2D",
+    "query": "Show the density of two numeric variables together"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Scatter Matrix Chart",
+    "query": "Show pairwise relationships between all numeric columns"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Strip Chart",
+    "query": "Show individual data points along a category axis"
+  },
+  {
+    "group": "Statistical",
+    "operator": "Tree Plot",
+    "query": "Show a hierarchical tree that I can expand and collapse"
+  },
+  {
+    "group": "Hugging Face",
+    "operator": "Hugging Face",
+    "query": "Call a pretrained AI model hosted online to process my data"
+  },
+  {
+    "group": "Hugging Face",
+    "operator": "Hugging Face Iris Logistic Regression",
+    "query": "Predict the iris flower species from measurements using a pretrained model"
+  },
+  {
+    "group": "Hugging Face",
+    "operator": "Hugging Face Sentiment Analysis",
+    "query": "Determine whether social media posts are positive or negative"
+  },
+  {
+    "group": "Hugging Face",
+    "operator": "Hugging Face Spam Detection",
+    "query": "Detect whether text messages are spam"
+  },
+  {
+    "group": "Hugging Face",
+    "operator": "Hugging Face Text Summarization",
+    "query": "Generate a short summary of a long text"
+  },
+  {
+    "group": "Financial",
+    "operator": "Bullet Chart",
+    "query": "Show progress toward a target with a compact bar indicator"
+  },
+  {
+    "group": "Financial",
+    "operator": "Candlestick Chart",
+    "query": "Visualize stock price open, high, low and close over time"
+  },
+  {
+    "group": "Financial",
+    "operator": "Funnel Plot",
+    "query": "Visualize how a group of leads narrows down through stages"
+  },
+  {
+    "group": "Financial",
+    "operator": "Gauge Chart",
+    "query": "Show a single value as a dial or speedometer"
+  },
+  {
+    "group": "Financial",
+    "operator": "Waterfall Chart",
+    "query": "Show how a starting value is affected by a sequence of increases and decreases"
+  },
+  {
+    "group": "Media",
+    "operator": "HTML Visualizer",
+    "query": "Preview a webpage or HTML content directly in the workflow"
+  },
+  {
+    "group": "Media",
+    "operator": "Image Visualizer",
+    "query": "Display an image in the workflow output"
+  },
+  {
+    "group": "Media",
+    "operator": "URL Visualizer",
+    "query": "Preview the content that a link points to"
+  },
+  {
+    "group": "Media",
+    "operator": "Word Cloud",
+    "query": "Show which words appear most often in a body of text"
+  },
+  {
+    "group": "Control Block",
+    "operator": "If",
+    "query": "Route data down different paths based on a condition"
+  },
+  {
+    "group": "Control Block",
+    "operator": "Loop End",
+    "query": "Mark where a repeating section of the workflow finishes"
+  },
+  {
+    "group": "Control Block",
+    "operator": "Loop Start",
+    "query": "Repeat a set of steps for every row in my data"
+  },
+  {
+    "group": "Control Block",
+    "operator": "Sleep",
+    "query": "Pause the workflow for a few seconds between records"
+  },
+  {
+    "group": "Database Connector",
+    "operator": "AsterixDB Source",
+    "query": "Pull data from an AsterixDB database"
+  },
+  {
+    "group": "Database Connector",
+    "operator": "MySQL Source",
+    "query": "Load data from a MySQL database"
+  },
+  {
+    "group": "Database Connector",
+    "operator": "PostgreSQL Source",
+    "query": "Load data from a PostgreSQL database"
+  },
+  {
+    "group": "R",
+    "operator": "1-out R UDF",
+    "query": "Run a custom R script that produces one output"
+  },
+  {
+    "group": "R",
+    "operator": "R UDF",
+    "query": "Write custom R code to process my data"
+  },
+  {
+    "group": "Java",
+    "operator": "Java UDF",
+    "query": "Write custom Java code to process my data"
+  },
+  {
+    "group": "Machine Learning General",
+    "operator": "Machine Learning Scorer",
+    "query": "Measure how well my trained model is performing"
+  },
+  {
+    "group": "Advanced",
+    "operator": "Choropleth Map",
+    "query": "Color a map by region based on a value like population or sales"
+  },
+  {
+    "group": "Advanced",
+    "operator": "Scatter3D Chart",
+    "query": "Plot three numeric variables in a 3D scatter plot"
+  },
+  {
+    "group": "Visualization",
+    "operator": "Nested Table",
+    "query": "Show grouped data as an expandable table within a table"
+  },
+  {
+    "group": "Aggregate",
+    "operator": "Aggregate",
+    "query": "Calculate the sum or average of a column grouped by category"
+  },
+  {
+    "group": "Data Cleaning",
+    "operator": "Distinct",
+    "query": "Remove duplicate rows from my dataset"
+  },
+  {
+    "group": "Data Cleaning",
+    "operator": "Filter",
+    "query": "Keep only rows that match certain conditions"
+  },
+  {
+    "group": "Data Cleaning",
+    "operator": "Limit",
+    "query": "Only show the first N rows of my results"
+  },
+  {
+    "group": "Data Cleaning",
+    "operator": "Projection",
+    "query": "Keep only certain columns and drop the rest"
+  },
+  {
+    "group": "Data Cleaning",
+    "operator": "Type Casting",
+    "query": "Convert a column from text to a number"
+  },
+  {
+    "group": "Data Input",
+    "operator": "Arrow File Scan",
+    "query": "Load data from an Arrow file"
+  },
+  {
+    "group": "Data Input",
+    "operator": "CSV File Scan",
+    "query": "Load data from a CSV file"
+  },
+  {
+    "group": "Data Input",
+    "operator": "CSVOld File Scan",
+    "query": "Load data from an older CSV format file"
+  },
+  {
+    "group": "Data Input",
+    "operator": "File Lister",
+    "query": "Get a list of filenames from a folder of data"
+  },
+  {
+    "group": "Data Input",
+    "operator": "File Scan",
+    "query": "Read data from a generic file"
+  },
+  {
+    "group": "Data Input",
+    "operator": "File Scan From Input",
+    "query": "Read files whose paths come from another operator's output"
+  },
+  {
+    "group": "Data Input",
+    "operator": "JSONL File Scan",
+    "query": "Load data from a JSON Lines file"
+  },
+  {
+    "group": "Data Input",
+    "operator": "Text Input",
+    "query": "Manually type in some text to use as data"
+  },
+  {
+    "group": "External API",
+    "operator": "Reddit Search",
+    "query": "Search Reddit for recent posts on a topic"
+  },
+  {
+    "group": "External API",
+    "operator": "Twitter Full Archive Search API",
+    "query": "Search the entire history of tweets on a topic"
+  },
+  {
+    "group": "External API",
+    "operator": "Twitter Search API",
+    "query": "Search recent tweets about a topic"
+  },
+  {
+    "group": "External API",
+    "operator": "URL Fetcher",
+    "query": "Download the content from a single web link"
+  },
+  {
+    "group": "Join",
+    "operator": "Cartesian Product",
+    "query": "Combine every row of one table with every row of another"
+  },
+  {
+    "group": "Join",
+    "operator": "Hash Join",
+    "query": "Combine two tables based on a matching key"
+  },
+  {
+    "group": "Join",
+    "operator": "Interval Join",
+    "query": "Match rows from two tables where one value falls within a range of the other"
+  },
+  {
+    "group": "Python",
+    "operator": "1-out Python UDF",
+    "query": "Write custom Python code that returns one output"
+  },
+  {
+    "group": "Python",
+    "operator": "2-in Python UDF",
+    "query": "Write custom Python code that takes two inputs"
+  },
+  {
+    "group": "Python",
+    "operator": "Python Lambda Function",
+    "query": "Quickly add or modify a column with a simple expression"
+  },
+  {
+    "group": "Python",
+    "operator": "Python Table Reducer",
+    "query": "Reduce an entire table down to a single summary row"
+  },
+  {
+    "group": "Python",
+    "operator": "Python UDF",
+    "query": "Write custom Python code to transform my data"
+  },
+  {
+    "group": "Search",
+    "operator": "Dictionary matcher",
+    "query": "Flag rows whose values appear in a predefined list"
+  },
+  {
+    "group": "Search",
+    "operator": "Keyword Search",
+    "query": "Find rows that contain a specific word"
+  },
+  {
+    "group": "Search",
+    "operator": "Regular Expression",
+    "query": "Find rows matching a text pattern"
+  },
+  {
+    "group": "Search",
+    "operator": "Substring Search",
+    "query": "Find rows containing a specific piece of text"
+  },
+  {
+    "group": "Set",
+    "operator": "Difference",
+    "query": "Find records that are in one dataset but not another"
+  },
+  {
+    "group": "Set",
+    "operator": "Intersect",
+    "query": "Find records that appear in both datasets"
+  },
+  {
+    "group": "Set",
+    "operator": "SymmetricDifference",
+    "query": "Find records that are in either dataset but not both"
+  },
+  {
+    "group": "Set",
+    "operator": "Union",
+    "query": "Combine rows from multiple datasets into one"
+  },
+  {
+    "group": "Sort",
+    "operator": "Sort",
+    "query": "Order my rows by a column's value"
+  },
+  {
+    "group": "Sort",
+    "operator": "Sort Partitions",
+    "query": "Sort each partition of data independently"
+  },
+  {
+    "group": "Sort",
+    "operator": "Stable Merge Sort",
+    "query": "Sort a very large dataset by multiple keys while preserving order of ties"
+  },
+  {
+    "group": "Utilities",
+    "operator": "Dummy",
+    "query": "Add a placeholder step that does nothing, for testing the workflow"
+  },
+  {
+    "group": "Utilities",
+    "operator": "Random K Sampling",
+    "query": "Randomly select a percentage of my rows"
+  },
+  {
+    "group": "Utilities",
+    "operator": "Reservoir Sampling",
+    "query": "Randomly select a fixed number of rows from a large stream"
+  },
+  {
+    "group": "Utilities",
+    "operator": "Split",
+    "query": "Send my data down two different paths"
+  },
+  {
+    "group": "Utilities",
+    "operator": "Unnest String",
+    "query": "Split a delimited string into multiple rows"
+  }
+]

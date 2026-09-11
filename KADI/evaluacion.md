@@ -1,123 +1,87 @@
-# Evaluacion
+# Evaluation
 
-Metodo: 10 consultas en lenguaje natural. Se cuenta acierto si el operador
-esperado aparece en el **top 3**. El baseline es la configuracion de fuse.js
-que Texera usa hoy, sin modificar (`threshold: 0.3`, `keys: ["userFriendlyName"]`).
+## The measurement that counts
 
-## Resultado — consultas en espanol
+**166 queries — one per operator.** Written by a team member from the operator
+catalogue alone, before opening `operator-hints.json`, so the set is independent
+of the index it measures. A hit means the expected operator is returned; strict,
+with no partial credit.
 
-| Consulta | Keyword (actual) | Semantico (nuevo) |
+| | top-1 | top-3 |
 |---|---|---|
-| quitar duplicados | ❌ sin resultados | ✅ Distinct |
-| leer un archivo csv | ❌ sin resultados | ✅ CSV File Scan |
-| entrenar un modelo de clasificacion | ❌ sin resultados | ✅ Training: Decision Tree |
-| unir dos tablas | ❌ sin resultados | ✅ Interval Join |
-| contar cuantos hay por categoria | ❌ sin resultados | ✅ Aggregate |
-| ordenar los datos | ❌ sin resultados | ✅ Sort |
-| buscar palabras clave en texto | ❌ sin resultados | ✅ Keyword Search |
-| conectarme a una base de datos | ❌ sin resultados | ✅ MySQL Source |
-| hacer una grafica | ❌ sin resultados | ✅ Scatter3D Chart |
-| ejecutar codigo python | ❌ sin resultados | ✅ 1-out Python UDF |
+| Keyword search (unchanged fuse.js) | 1 / 166 — **1 %** | 2 / 166 — **1 %** |
+| Semantic search | 102 / 166 — **61 %** | 138 / 166 — **83 %** |
 
-**Keyword: 0/10 — Semantico: 10/10**
+The keyword search finds one operator out of 166. Not because of phrasing or
+language: fuse.js compares the whole query against the operator's name, so the
+only queries it can answer are the ones that already contain the name.
 
-## Limitacion conocida de esta medicion
+## By group
 
-Las diez consultas estan en espanol y el indice de fuse.js solo contiene
-nombres en ingles, asi que el 0/10 del baseline es en parte esperable y no
-constituye por si solo una comparacion justa.
+The two largest groups in the catalogue are also two of the strongest.
 
-**Pendiente:** anadir un bloque de consultas en ingles expresadas por intencion
-(p.ej. "remove repeated rows" en vez de "Distinct") donde el baseline si tiene
-posibilidad de acertar. Si el semantico gana tambien ahi, la comparacion queda
-cerrada.
+| Group | Operators | Semantic top-3 | Keyword top-3 |
+|---|---|---|---|
+| Sklearn | 28 | 89 % | 0 % |
+| Sklearn Training | 26 | 85 % | 8 % |
+| Basic (charts) | 16 | 81 % | 0 % |
+| Scientific | 14 | 79 % | 0 % |
+| Statistical | 8 | 63 % | 0 % |
+| Financial | 5 | 60 % | 0 % |
+| Hugging Face | 5 | 80 % | 0 % |
+| Data Cleaning, Data Input, Python, Sort, Utilities, External API, Media, Database Connector, R, Java | 45 | **100 %** | 0 % |
+| Set | 4 | 50 % | 0 % |
+| Advanced Sklearn | 4 | 0 % | 0 % |
 
-## Resultado — consultas en ingles
+## What the failures revealed
 
-Se anadio este bloque porque la medicion en espanol, por si sola, no era una
-comparacion justa: el indice de fuse.js solo contiene nombres en ingles. Varias
-de estas consultas comparten palabra con el nombre del operador ("sort", "join"),
-asi que aqui el baseline si tiene posibilidades reales.
+Of the 28 queries that missed the top 3, several are not ranking failures at
+all — Texera lists the same capability under more than one operator:
 
-| Consulta | Keyword (actual) | Semantico (nuevo) |
+| Query | Expected | Returned |
 |---|---|---|
-| remove duplicate rows | ❌ sin resultados | ✅ Distinct |
-| read a csv file | ❌ sin resultados | ✅ CSV File Scan |
-| train a classifier | ❌ sin resultados | ⚠️ Training: Dummy Classifier |
-| join two tables | ❌ sin resultados | ✅ Interval Join |
-| count rows by category | ❌ sin resultados | ✅ Limit |
-| sort the data | ❌ sin resultados | ✅ Sort |
-| find keywords in text | ❌ sin resultados | ✅ Keyword Search |
-| connect to a database | ❌ sin resultados | ✅ MySQL Source |
-| draw a chart | ❌ sin resultados | ⚠️ Tables Plot |
-| run python code | ❌ sin resultados | ✅ 1-out Python UDF |
+| Classify data points by their k nearest neighbors | KNN Classifier | K-nearest Neighbors |
+| Classify data using a support vector machine | SVM Classifier | Linear Support Vector Machine |
+| Predict a continuous value using a support vector machine | SVM Regressor | Linear Support Vector Machine |
 
-**Keyword: 0/10 — Semantico: 8/10**
+`KNN Classifier` and `K-nearest Neighbors` are the same thing under two names,
+as are `Radar Chart` and `Radar Plot`, and `Tables Plot` and `Figure Factory
+Table`. No ranker can separate operators the catalogue itself does not separate.
+That accounts for the whole of the Advanced Sklearn group's 0 %.
 
-### Que revela este segundo bloque
+**These are left in the failure count.** Excusing them would need a second,
+looser metric, and 61 % against 1 % does not need help.
 
-El baseline vuelve a sacar 0/10 **en su propio idioma**. La causa no es la
-lengua: fuse.js compara la consulta entera contra el nombre del operador, asi
-que solo acierta si el usuario ya teclea ese nombre. Una frase que describe una
-intencion no se parece a "Distinct" ni a "Sort" por mucho que signifique eso.
+The genuine failures cluster in chart selection — `Histogram` against
+`Empirical Cumulative Distribution Plot`, `Line Chart` against `Time Series
+Plot` — where the distinction is one of convention rather than of meaning, and
+the descriptions ("Visualize data in a Histogram Chart") repeat the name instead
+of saying when to reach for it.
 
-Dicho de otro modo: el buscador actual solo sirve a quien ya sabe la respuesta.
+## Two claims that need no caveat
 
-### Sobre los dos casos marcados ⚠️
+- **Nothing is lost.** Queries that name the operator still rank it first, 10 out
+  of 10. Semantic search is a superset of what the box already did.
+- **The keyword search fails in its own language.** Measured in English and in
+  Spanish, across three separate sets, it never exceeded 1 %.
 
-No son errores del ranker. "Training: Dummy Classifier" es efectivamente un
-entrenador de clasificadores, y "Tables Plot" es efectivamente una grafica. La
-respuesta esperada que fijamos era una entre varias validas, de modo que 8/10
-es una cota inferior: bajo un criterio de "cualquier operador que resuelva la
-intencion", las diez son aciertos.
+## An earlier attempt that failed
 
-## Tercer bloque — 20 consultas realistas
+We enriched the index with every operator's configuration fields, reasoning that
+`Hash Join`'s *"Left Input Attribute: attribute to be joined on"* carries meaning
+its three-word description omits. It ranked **worse**:
 
-Las dos tandas anteriores usaban consultas cortas de una sola intencion. Este
-bloque las sustituye por frases como las que escribiria alguien trabajando:
-compuestas, con vocabulario de dominio y a veces con dos intenciones dentro
-("Call a third-party API and parse the JSON response").
-
-**Buscador actual: 0 de 20.** No devuelve nada en ninguna. Semanticamente, unas
-diez dan un operador claramente util en el top 3 — entre ellas Sort, Aggregate,
-Split, Union, Projection, Keyword Search, Regular Expression y Hugging Face
-Sentiment Analysis.
-
-Los fallos reconocibles:
-
-| Consulta | Devuelto | Deberia |
+| Query | Base index | With fields |
 |---|---|---|
-| Combine two datasets based on a shared column | Split | Hash Join |
-| Keep only rows where the price is above a threshold | Limit | Filter |
-| Extract email addresses from a text field | Text Input | Regular Expression |
-| Write the final results to a CSV file | CSV File Scan | un operador de escritura |
+| Count how many times each category appears | Aggregate (1st) | Limit (1st), Aggregate (3rd) |
+| Split a single column into multiple columns | Split (1st) | Aggregate (1st), Split (2nd) |
+| Merge rows from two tables into one output | Union (2nd) | Union (3rd) |
 
-El ultimo es revelador: el ranker no distingue leer de escribir, porque en el
-texto indexado de `CSV File Scan` la palabra dominante es "CSV".
+Generic field names are shared across unrelated operators, so adding them pulls
+those operators together: noise, not signal. Reverted.
 
-### Intento de mejora que no funciono
+## Method
 
-Hipotesis: las descripciones son demasiado cortas — la de `Hash Join` es
-literalmente "join two inputs" — y los campos de configuracion de cada operador
-si contienen vocabulario util ("Left Input Attribute: attribute to be joined on
-the Left Input", "Predicates: multiple predicates in OR").
-
-Se regenero el indice anadiendo el titulo y la ayuda de cada campo al texto
-embebido, y se repitio la medicion. **Empeoro:**
-
-| Consulta | Indice base | Con campos |
-|---|---|---|
-| Count how many times each category appears | Aggregate (1º) | Limit (1º), Aggregate (3º) |
-| Split a single column into multiple columns | Split (1º) | Aggregate (1º), Split (2º) |
-| Merge rows from two tables into one output | Union (2º) | Union (3º) |
-| Remove columns that aren't needed downstream | Projection (2º) | Projection (3º) |
-
-Muchos operadores comparten nombres de campo genericos, asi que anadirlos acerca
-entre si a operadores que no tienen nada que ver: es ruido, no señal. El cambio
-se revirtio y el indice publicado es el original.
-
-### Conclusion
-
-El techo de este enfoque no lo pone el modelo, lo ponen los metadatos de Texera.
-La via de mejora con mas recorrido no es un modelo mayor ni un indice mas
-elaborado, sino descripciones de operador decentes en el proyecto base.
+See [`metodo.md`](metodo.md). The short version: the 166-query set is
+independent and its numbers stand. An earlier 19-query set was used both to
+measure and to decide where to add phrasings, so its score is not quotable.
