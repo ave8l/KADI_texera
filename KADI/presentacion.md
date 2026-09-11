@@ -1,148 +1,152 @@
 # Guion de presentación — 3 minutos en vivo
 
-Dos personas. **A** narra y maneja la pantalla, **B** entra en resultados y Q&A.
-Los `[CAPTURA n]` son los huecos; la numeración es la de la lista de capturas.
+**Lo que decís va en inglés** (el jurado solo habla inglés).
+**Las acotaciones van en español** — son para vosotros, no se dicen.
+
+**A** narra y maneja la pantalla. **B** entra en el "cómo funciona" y en Q&A.
+Los `[CAPTURA n]` son los huecos de imagen.
 
 ---
 
 ## 1 · El problema — 30 s · habla A
 
-> "Texera tiene **166 operadores** repartidos en 26 grupos. Para usar uno,
-> primero hay que encontrarlo."
+> "Texera ships **166 operators** across 26 groups. Before you can use one, you
+> have to find it."
 
-`[CAPTURA 7 — la paleta con todos los grupos plegados]`
+`[CAPTURA 7 — la paleta con los grupos plegados]`
 
-> "El buscador de la paleta compara lo que escribes contra **el nombre** del
-> operador. Nada más. Su descripción, que existe en los 166, no se consulta
-> nunca."
+> "The search box compares what you type against the operator's **name**. That's
+> all. Every operator has a description — all 166 of them — and the search never
+> reads it."
 
-**El remate, que es el hallazgo del proyecto:**
+**El remate. Pausa antes y después:**
 
-> "Eso significa que el buscador solo sirve **si ya sabes la respuesta**."
+> "Which means the search only helps you **if you already know the answer**."
 
 ---
 
 ## 2 · Demo en vivo — 90 s · maneja A
 
-El corazón de la presentación. **No narrar de más: que se vea.**
+Lo importante: **que se vea, no que se narre.**
 
 **Paso 1 — el estado actual.** Toggle apagado. Escribir:
 
 ```
-remove duplicate rows
+remove repeated rows
 ```
 
-Silencio dos segundos mientras el jurado ve la lista vacía.
+Callarse dos segundos. Dejar que vean la caja vacía y el mensaje.
 
-> "Cero resultados. Y esto es inglés, el idioma de la interfaz."
+> "No results. And that's English — the language of the interface."
 
-`[CAPTURA 3 — toggle apagado, sin resultados]`
+`[CAPTURA 3 — toggle apagado, mensaje "No results. Try search by meaning"]`
 
-**Paso 2 — encender.** Sin borrar el texto, activar el toggle.
+**Paso 2 — encender.** Clic en el propio mensaje, sin borrar el texto.
 
-> "Misma consulta."
+> "Same query."
 
-`[CAPTURA 4 — toggle encendido, Distinct arriba con su score]`
+`[CAPTURA 4 — Distinct arriba, con su score y su descripción]`
 
-**Paso 3 — cerrar el ciclo.** Clic en Distinct → el operador aparece en el canvas.
+**Paso 3 — leer el resultado en voz alta.** Señalar la pantalla:
+
+> "Distinct, at 0.71. Below it, Limit at 0.52 — so the top answer stands clear.
+> And each one shows what it does, so you decide without opening anything."
+
+**Paso 4 — cerrar el ciclo.** Clic en Distinct → aparece en el canvas.
 
 `[CAPTURA 6 — el operador ya colocado en el workflow]`
 
-> "No es una lista: lo añade al workflow."
-
-**Paso 4 — el bis en español.** Apagar, escribir `quitar duplicados`, encender.
-
-`[CAPTURAS 1 y 2]`
-
-> "El mismo modelo, sin traducir nada."
+> "It doesn't just find it. It places it."
 
 ---
 
 ## 3 · Cómo funciona — 30 s · habla B
 
-> "Los vectores de los 166 operadores se calculan **una vez, fuera de línea**, y
-> viven versionados en el repositorio. Cuando escribes, lo único que se calcula
-> es el vector de **tu frase** — y se calcula **dentro de tu navegador**."
+> "The vectors for all 166 operators are computed **once, offline**, and
+> committed to the repository. When you type, the only thing computed is the
+> vector for **your sentence** — and it's computed **inside your browser**."
 
-`[CAPTURA 9 — pestaña de red vacía durante una búsqueda]`
+`[CAPTURA 9 — pestaña de red sin peticiones durante una búsqueda]`
 
-> "Sin servidor. Sin clave de API. Sin coste por consulta. Esa pestaña de red
-> está vacía porque no hay a quién preguntarle."
+> "No server. No API key. No cost per query. That network tab is empty because
+> there's nobody to ask."
 
 ---
 
 ## 4 · Lo que medimos — 30 s · habla B
 
-> "Comparamos contra el buscador actual, sin tocar su configuración."
+> "We compared against the existing search, with its configuration untouched."
 
-| Conjunto | Buscador actual | Búsqueda semántica |
-|---|---|---|
-| 10 consultas simples, español | 0 / 10 | **10 / 10** |
-| 10 consultas simples, inglés | 0 / 10 | **8 / 10** |
-| 20 consultas realistas, inglés | **0 / 20** | ~10 / 20 claras |
+**Las dos cifras que se pueden defender sin reservas:**
 
-> "El dato que no cambia en ninguna tanda: el buscador actual devuelve **cero**
-> resultados en las cuarenta consultas. En su propio idioma."
+> "Across **40 natural-language queries**, in English and in Spanish, the current
+> search returned **zero results**. Every single time."
+
+> "And queries that **do** name the operator still rank it first, **ten out of
+> ten**. We take nothing away — we only add."
+
+**⚠️ No citar el 17/19.** Está ajustado al propio conjunto de prueba — ver
+`metodo.md`. Si alguien pregunta por precisión general, la respuesta honesta es
+la de abajo.
 
 ---
 
 ## 5 · Hasta dónde llega — 30 s · habla B
 
-**Decir esto nosotros, antes de que lo pregunten.**
+**Decirlo nosotros, antes de que lo pregunten.**
 
-> "En consultas compuestas acierta aproximadamente la mitad. 'Combine two
-> datasets based on a shared column' devuelve Split en vez de Hash Join."
+> "On compound queries it's right about half the time. 'Combine two datasets on a
+> shared column' can return Split instead of Hash Join."
 
-> "Investigamos por qué. La descripción de Hash Join en Texera es, literalmente,
-> **'join two inputs'**. Tres palabras. El techo no lo pone el modelo: lo pone
-> la calidad de los metadatos del propio Texera."
+> "We looked into why. Texera's description for Hash Join is, literally, **'join
+> two inputs'**. Three words. The ceiling isn't the model — it's the metadata."
 
-> "Probamos enriquecer el índice con los campos de configuración de cada
-> operador. **Empeoró** — los nombres de campo son genéricos y diluyen la señal.
-> Lo revertimos y lo dejamos documentado."
+> "We tried enriching the index with each operator's configuration fields. It got
+> **worse**: field names are generic, so they pull unrelated operators together.
+> We reverted it and wrote down the numbers."
 
-**Siguiente paso, en una frase:**
+**El cierre:**
 
-> "La mejora con más recorrido no es cambiar de modelo: es que los 166
-> operadores tengan una descripción decente."
+> "The highest-value next step isn't a bigger model. It's giving Texera's 166
+> operators a decent description."
 
 ---
 
 ## Preguntas que van a caer
 
-**"¿Esto necesita internet / una API de pago?"**
-No. El modelo se descarga una vez desde un CDN público y queda en la caché del
-navegador. Después funciona sin red. No hay clave de API en ningún punto.
+**"Does this need internet or a paid API?"**
+No. The model is downloaded once from a public CDN and cached by the browser.
+After that it works offline. There is no API key anywhere in this.
 
-**"¿Cuánto tarda?"**
-La primera consulta del navegador descarga el modelo. A partir de ahí, la
-búsqueda es instantánea: comparar contra 166 vectores no es trabajo.
+**"How fast is it?"**
+The first query in a fresh browser downloads a 23 MB model. After that it's
+instant — comparing against 166 vectors is nothing.
 
-**"¿Por qué no usasteis GPT / un LLM?"**
-Porque no hace falta y añade dependencia, coste y latencia. Esto es comparación
-de vectores. Además el entorno local de Texera trae litellm, pero sin clave
-configurada — una solución que dependiera de eso no habría funcionado hoy.
+**"Why not use an LLM?"**
+It isn't needed, and it would add a dependency, a cost and latency. This is
+vector comparison. Texera's local setup does ship litellm, but with no API key
+configured — anything built on that wouldn't have run today.
 
-**"¿Escala a más operadores?"**
-El índice son 486 KB para 166. Diez veces más operadores siguen siendo unos
-pocos megas y la comparación sigue siendo lineal y trivial.
+**"Does it scale to more operators?"**
+The index is 486 KB for 166. Ten times the operators is a few megabytes, and the
+comparison stays linear.
 
-**"¿Por qué un modelo multilingüe si Texera está en inglés?"**
-Lo medimos: el monolingüe no encontraba `CSV File Scan` para "leer un archivo".
-Cuesta unos segundos más de carga inicial y abre la herramienta a quien no
-piensa en inglés.
+**"What is that number next to each result?"**
+Cosine similarity between your sentence and the operator's text. It is **not** an
+accuracy percentage. What matters is the gap between the first and the second:
+0.71 against 0.52 is a confident answer, 0.59 against 0.55 is a tie.
 
-**"¿Funciona el buscador de antes si lo necesito?"**
-Sí. El toggle cambia entre los dos y, si el modelo fallara, cae solo al
-buscador original en vez de quedarse muerto.
+**"Can I still use the old search?"**
+Yes. The toggle switches between them, and if the model ever failed to load it
+falls back to the keyword search instead of going dead.
 
 ---
 
 ## Checklist antes de subir
 
-- [ ] **Calentar el modelo**: hacer una búsqueda cualquiera 10 min antes.
-      Si la primera es delante del jurado, ven "loading model…" durante la descarga.
+- [ ] **Calentar el modelo**: una búsqueda cualquiera 10 min antes de presentar
 - [ ] Navegador en la pestaña correcta, zoom al 100 %
 - [ ] Un workflow abierto con la paleta visible
 - [ ] Toggle **apagado** de salida — la demo empieza en el estado "antes"
 - [ ] El repositorio abierto en otra pestaña por si lo piden
+- [ ] Repasar la respuesta de "what is that number" — es la que más se pregunta
