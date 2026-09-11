@@ -1,48 +1,51 @@
 # KADI_texera
 
-Repositorio para integración de ideas dentro del proyecto Texera, para el
-Hackaton UP 11/09/2026.
+Submission for the UP Hackathon, 11–12 September 2026, built on Apache Texera.
 
 ---
 
-## Búsqueda semántica de operadores
+## Semantic operator search
 
-Texera expone **166 operadores** en 26 grupos. El buscador de la paleta indexa
-únicamente el nombre del operador, así que una consulta expresada como
-intención no encuentra nada — aunque la descripción del operador diga
-exactamente eso. Las descripciones existen para los 166 y nunca se consultan.
+Texera ships **166 operators** across 26 groups. The palette's search box
+compares what you type against the operator's **name** and nothing else, so a
+query phrased as an intent finds nothing — even when the operator's own
+description says exactly that. All 166 descriptions exist. None is ever read.
 
-Este trabajo añade búsqueda por significado, calculada **entera en el
-navegador**: sin backend, sin API key y sin coste por consulta.
+Put plainly: **the current search only helps someone who already knows the
+answer.**
 
-### Resultado medido
+This work adds search by meaning, computed **entirely in the browser**: no
+backend, no API key, no per-query cost.
 
-Sobre 10 consultas en lenguaje natural, acierto en el top 3:
+### What we measured
 
-| | Buscador actual | Búsqueda semántica |
-|---|---|---|
-| Aciertos | **0 / 10** | **10 / 10** |
+Across 40 natural-language queries, in English and in Spanish, the existing
+search returned **zero results every time**. Not a language problem — fuse.js
+matches the whole query against the operator name, so only the name works.
 
-El método, los datos y las limitaciones conocidas de esa medición están en
-[`KADI/evaluacion.md`](KADI/evaluacion.md).
+Queries that *do* name the operator still rank it first, **10 out of 10**: the
+new ranking gives up nothing the old one could do.
 
-### Cómo funciona
+Method, results and their limits: [`KADI/evaluacion.md`](KADI/evaluacion.md).
+Read [`KADI/metodo.md`](KADI/metodo.md) before quoting any accuracy figure — it
+explains which numbers are trustworthy and which are not yet.
 
-Los vectores de los 166 operadores se generan **offline** y se versionan en el
-repositorio. En ejecución solo se embebe la consulta del usuario, con el modelo
-multilingüe `paraphrase-multilingual-MiniLM-L12-v2` corriendo en WASM dentro
-del navegador.
+### How it works
 
-Detalles de diseño y decisiones en [`KADI/README.md`](KADI/README.md).
+Vectors for all 166 operators are generated **offline** and committed to the
+repository. At runtime only the user's query is embedded, by a 23 MB model
+running in WebAssembly inside the browser, cached after first use.
+
+Design decisions and what we tried that failed:
+[`KADI/README.md`](KADI/README.md).
 
 ---
 
-## Sobre el proyecto base
+## About the base project
 
-Este repositorio es un fork de [Apache Texera (incubating)](https://github.com/apache/texera),
-una plataforma de código abierto para ciencia de datos colaborativa entre
-humanos e IA mediante workflows visuales.
+A fork of [Apache Texera (incubating)](https://github.com/apache/texera), an
+open-source platform for human-AI collaborative data science through visual
+workflows.
 
-La documentación original del proyecto está en [`docs/`](docs/), y las
-instrucciones de instalación y contribución en
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+Texera's own documentation lives in [`docs/`](docs/); build and contribution
+instructions in [`CONTRIBUTING.md`](CONTRIBUTING.md).
