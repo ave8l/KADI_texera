@@ -14,8 +14,13 @@ description says exactly that. All 166 descriptions exist. None is ever read.
 Put plainly: **the current search only helps someone who already knows the
 answer.**
 
-This work adds search by meaning, computed **entirely in the browser**: no
-backend, no API key, no per-query cost.
+This work adds search by meaning to that same box — no second mode and no
+switch to find. Both rankers answer every query: the keyword search keeps its
+places, so typing a name behaves exactly as before, and the ranked results fill
+what is left, which is where a phrase lands since it matches no name.
+
+It is computed **entirely in the browser**: no backend, no API key, no
+per-query cost.
 
 ### What we measured
 
@@ -98,12 +103,12 @@ query and scores it against all 166 vectors by cosine similarity. Both sides are
 normalised, so a dot product is the similarity. One shared warm-up promise means
 a burst of keystrokes cannot start several model downloads.
 
-**3 · A toggle in the palette.**
+**3 · One box, two rankers.**
 [`operator-menu.component.ts`](frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.ts)
-routes each keystroke to whichever ranker is active. Queries carry a sequence
-number, so a slow answer for an earlier keystroke cannot overwrite a newer one,
-and any failure to load the model falls back to the keyword search rather than
-leaving the box unresponsive.
+sends every keystroke to both. Keyword results render immediately, so the box
+never waits on the model; ranked results merge in underneath once they arrive.
+Queries carry a sequence number, so a slow answer for an earlier keystroke
+cannot overwrite a newer one.
 
 **4 · The hover card.** `workflow-editor.component.ts` builds it from the
 operator's schema plus the graph's links, and subscribes to link, rename and
@@ -130,8 +135,9 @@ accuracy percentage. `Distinct 0.71` above `Limit 0.52` is a confident answer;
 **Clicking a result places the operator on the canvas**, at the current viewport
 position — the same behaviour the old search had.
 
-**Turning the toggle off restores the original keyword search.** If it then
-returns nothing, the palette says so and offers to switch back.
+**The original search is untouched.** It runs on every query and its results
+come first; if the embedding model ever failed to load, they simply stand on
+their own.
 
 **Phrasings are how you improve it.** [`KADI/operator-hints.json`](KADI/operator-hints.json)
 maps an operator's display name to the wordings a user would reach for. Edit it,

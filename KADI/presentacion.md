@@ -27,23 +27,28 @@ Los `[CAPTURA n]` son los huecos de imagen.
 
 ## 2 · Demo en vivo — 90 s · maneja A
 
+**Montaje: dos pantallas.** La segunda máquina con Texera de serie, ya arrancada
+y con sesión iniciada. Comprobadlo antes de subir.
+
 Lo importante: **que se vea, no que se narre.**
 
-**Paso 1 — el estado actual.** Toggle apagado. Escribir:
+**Paso 1 — el Texera de serie.** En la otra pantalla, escribir en su paleta:
 
 ```
 remove repeated rows
 ```
 
-Callarse dos segundos. Dejar que vean la caja vacía y el mensaje.
+Callarse dos segundos.
 
-> "No results. And that's English — the language of the interface."
+> "That's Texera as it ships. The search compares what you type against the
+> operator's name, so a phrase matches nothing."
 
-`[CAPTURA 3 — toggle apagado, mensaje "No results. Try search by meaning"]`
+`[CAPTURA 3 — la paleta original, sin resultados]`
 
-**Paso 2 — encender.** Clic en el propio mensaje, sin borrar el texto.
+**Paso 2 — la nuestra.** Misma frase, nuestra pantalla. **Una sola caja, sin
+modos: el usuario no elige nada.**
 
-> "Same query."
+> "Same box. Same query."
 
 `[CAPTURA 4 — Distinct arriba, con su score y su descripción]`
 
@@ -51,6 +56,12 @@ Callarse dos segundos. Dejar que vean la caja vacía y el mensaje.
 
 > "Distinct, at 0.71. Below it, Limit at 0.52 — so the top answer stands clear.
 > And each one shows what it does, so you decide without opening anything."
+
+**Si alguien pregunta si rompimos la búsqueda de siempre**, escribir `Sort`:
+
+> "Type a name and it behaves exactly as before — instantly, and first. Both
+> rankers answer every query; the exact matches keep their places and the rest
+> fills in underneath."
 
 **Paso 4 — cerrar el ciclo.** Clic en Distinct → aparece en el canvas.
 
@@ -69,6 +80,12 @@ del operador. Sale la tarjeta sola.
 **Señalar las dos líneas de abajo:**
 
 > "That part isn't a guess. It's read from the graph, so it updates as you wire."
+
+**Paso 6 — el encadenado.** El operador sigue seleccionado; en la paleta aparece
+qué va después. Clic. Y otra vez.
+
+> "And it suggests what usually comes next. One click places it and wires it —
+> so you can build a pipeline without going back to the search at all."
 
 ---
 
@@ -169,9 +186,12 @@ which the palette already had and the canvas never showed. The connections are
 read from the workflow graph, so they cannot be wrong and they update live as
 you wire.
 
-**"Can I still use the old search?"**
-Yes. The toggle switches between them, and if the model ever failed to load it
-falls back to the keyword search instead of going dead.
+**"Did you replace the original search?"**
+No. Both rankers answer every query. The keyword search runs first and keeps
+its places, so typing a name behaves exactly as it always did — instantly, and
+first. The ranked results fill what is left, which is where a phrase lands
+since it matches no name. If the model ever failed to load, the keyword results
+simply stand.
 
 ---
 
@@ -180,6 +200,7 @@ falls back to the keyword search instead of going dead.
 - [ ] **Calentar el modelo**: una búsqueda cualquiera 10 min antes de presentar
 - [ ] Navegador en la pestaña correcta, zoom al 100 %
 - [ ] Un workflow abierto con la paleta visible
-- [ ] Toggle **apagado** de salida — la demo empieza en el estado "antes"
+- [ ] **La segunda máquina encendida**, con Texera de serie abierto y la sesión
+      iniciada — es el "antes" de la comparación
 - [ ] El repositorio abierto en otra pestaña por si lo piden
 - [ ] Repasar la respuesta de "what is that number" — es la que más se pregunta

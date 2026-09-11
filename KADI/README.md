@@ -23,7 +23,9 @@ Search by meaning, computed **entirely in the browser**:
 - `Xenova/all-MiniLM-L6-v2` through Transformers.js
 - All 166 operators indexed **offline**, their vectors committed
 - At runtime only the user's query is embedded
-- Cosine similarity against the 166 vectors, top 3
+- Cosine similarity against the 166 vectors
+- One search box: the keyword results come first and keep their places, the
+  ranked ones fill what is left
 
 **No backend. No API key. No cost.** The model runs in WebAssembly and is cached
 after the first download.

@@ -69,7 +69,8 @@ demo completa y probada de dos funcionalidades.
 - [ ] **Calentar el modelo**: una búsqueda cualquiera 10 min antes. La primera
       de cada navegador descarga 23 MB y se ve un "loading model…"
 - [ ] Workflow 4 (`KADI demo - tickets by department`) abierto
-- [ ] Toggle de búsqueda **apagado** de salida — la demo empieza en el "antes"
+- [ ] **Segunda máquina** con Texera de serie encendida y con sesión iniciada —
+      es el "antes" de la comparación
 - [ ] Zoom al 100 %, repo abierto en otra pestaña
 - [ ] Releer `defensa.md`, sobre todo *"¿esto es estadística?"*
 
@@ -79,8 +80,8 @@ demo completa y probada de dos funcionalidades.
 
 Un solo gesto continuo que toca las tres funcionalidades:
 
-1. Escribir `remove repeated rows` con el toggle apagado → no sale nada
-2. Clic en el mensaje que aparece → se enciende y salen resultados
+1. Escribir `remove repeated rows` en el Texera de serie → no sale nada
+2. La misma frase en el nuestro → sale `Distinct`, con score y descripción
 3. Clic en `Distinct` → se coloca en el canvas
 4. Pasar el cursor por encima → la tarjeta lo explica
 5. Sigue seleccionado → el panel ofrece qué va después

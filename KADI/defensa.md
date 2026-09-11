@@ -83,6 +83,24 @@ límite de vuestra propia herramienta en vez de aplicarla a todo.
 
 ---
 
+## "¿Reemplazasteis la búsqueda original?"
+
+> "No. Both rankers answer every query. The keyword search runs first and keeps
+> its places, so typing a name behaves exactly as it always did — instantly, and
+> first. The ranked results fill what is left, which is where a phrase lands
+> since it matches no name."
+
+**Nota.** Esta pregunta la hará Chen Li o alguien que conozca Texera. La
+respuesta corta que convence: **teclea `Sort` y compruébalo**. Enseñadlo en vivo
+si hace falta, es instantáneo.
+
+Había un toggle para elegir motor. Lo quitamos por indicación suya: obligaba al
+usuario a saber que existían dos y a adivinar cuál necesitaba su consulta. Si
+alguien pregunta por qué no hay modo, esa es la razón — **y decid que la
+sugerencia fue suya**, porque es verdad y demuestra que escucháis.
+
+---
+
 ## "¿Qué es ese número junto a cada resultado?"
 
 > "Cosine similarity between your sentence and the operator's text. It is not an

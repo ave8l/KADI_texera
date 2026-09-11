@@ -23,10 +23,10 @@ only extended. Nothing in the backend was touched.
 
 | File | Added | Removed | What changed |
 |---|---|---|---|
-| `frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.ts` | +189 | −10 | Search toggle, suggestion panel, add-and-connect |
+| `frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.ts` | +189 | −10 | Merged search, suggestion panel, add-and-connect |
 | `frontend/src/app/workspace/component/workflow-editor/workflow-editor.component.ts` | +139 | −1 | Hover card and the graph subscriptions that keep it current |
-| `frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.scss` | +128 | −1 | Styles for the toggle, the ranked results and the suggestion panel |
-| `frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.html` | +62 | −2 | Toggle, relevance score, per-result description, suggestions |
+| `frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.scss` | +128 | −1 | Styles for the ranked results and the suggestion panel |
+| `frontend/src/app/workspace/component/left-panel/operator-menu/operator-menu.component.html` | +62 | −2 | Relevance score, per-result description, suggestions |
 | `frontend/src/app/workspace/component/workflow-editor/workflow-editor.component.scss` | +48 | −0 | Hover card styling |
 | `frontend/src/app/workspace/component/workflow-editor/workflow-editor.component.html` | +34 | −0 | Hover card markup |
 | `build.sbt` | +16 | −2 | Windows launcher classpath fix — a development-environment fix, not a feature |
