@@ -75,19 +75,25 @@ Callarse dos segundos. Dejar que vean la caja vacía y el mensaje.
 
 ## 4 · Lo que medimos — 30 s · habla B
 
-> "We compared against the existing search, with its configuration untouched."
+> "We measured against the existing search, with its configuration untouched."
 
-**Las dos cifras que se pueden defender sin reservas:**
+**Enseñar la cifra en pantalla mientras se dice:**
 
-> "Across **40 natural-language queries**, in English and in Spanish, the current
-> search returned **zero results**. Every single time."
+> "One hundred and sixty-six queries. One per operator. Written by my teammate
+> from the catalogue alone, before seeing anything about how the index works."
 
-> "And queries that **do** name the operator still rank it first, **ten out of
-> ten**. We take nothing away — we only add."
+> "The existing search finds the right operator **twice**. Out of a hundred and
+> sixty-six."
 
-**⚠️ No citar el 17/19.** Está ajustado al propio conjunto de prueba — ver
-`metodo.md`. Si alguien pregunta por precisión general, la respuesta honesta es
-la de abajo.
+**Pausa. Dejar que ese número aterrice.**
+
+> "Ours finds it in the top three **a hundred and thirty-eight times**. Eighty-three
+> percent, against one."
+
+**Si hay tiempo, el dato que remata:**
+
+> "The Sklearn operators are a third of the catalogue — fifty-four of them. That's
+> where we expected to fail. We get eighty-five to eighty-nine percent."
 
 ---
 
@@ -95,20 +101,24 @@ la de abajo.
 
 **Decirlo nosotros, antes de que lo pregunten.**
 
-> "On compound queries it's right about half the time. 'Combine two datasets on a
-> shared column' can return Split instead of Hash Join."
+> "Twenty-eight queries miss. We looked at every one of them."
 
-> "We looked into why. Texera's description for Hash Join is, literally, **'join
-> two inputs'**. Three words. The ceiling isn't the model — it's the metadata."
+> "Some aren't ours to fix. Texera lists **KNN Classifier** and **K-nearest
+> Neighbors** as separate operators. Same for **Radar Chart** and **Radar Plot**.
+> No search can separate what the catalogue doesn't separate — and we left those
+> counted as failures rather than write ourselves a kinder metric."
 
-> "We tried enriching the index with each operator's configuration fields. It got
-> **worse**: field names are generic, so they pull unrelated operators together.
-> We reverted it and wrote down the numbers."
+> "The real misses are charts. Histogram against cumulative distribution plot.
+> The descriptions just repeat the name — 'Visualize data in a Histogram Chart' —
+> so there's nothing to tell them apart by."
+
+> "We also tried enriching the index with each operator's configuration fields.
+> It got **worse**. We reverted it and wrote down the numbers."
 
 **El cierre:**
 
-> "The highest-value next step isn't a bigger model. It's giving Texera's 166
-> operators a decent description."
+> "The highest-value next step isn't a bigger model. It's giving Texera's
+> operators a description that says when to use them."
 
 ---
 
@@ -117,6 +127,11 @@ la de abajo.
 **"Does this need internet or a paid API?"**
 No. The model is downloaded once from a public CDN and cached by the browser.
 After that it works offline. There is no API key anywhere in this.
+
+**"How did you pick the queries?"**
+One per operator, all 166, written by a team member working from the operator
+catalogue before seeing the index or the phrasings it was built from. The
+expected answer was fixed before anything was run.
 
 **"How fast is it?"**
 The first query in a fresh browser downloads a 23 MB model. After that it's
