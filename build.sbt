@@ -52,6 +52,20 @@ lazy val universalJvmFlagsSettings = Seq(
     JdkOptions.jvmFlags((ThisBuild / baseDirectory).value).map("-J" + _)
 )
 
+// The sbt-native-packager bash launcher lists every jar on the classpath one by
+// one. With 300+ jars that string runs past 46k characters, which blows Windows'
+// 32767-character command-line limit and the service dies with "Argument list
+// too long". A lib_dir wildcard keeps the launcher short on every platform.
+//
+// The second define covers Git Bash: the stock launcher only converts the
+// classpath to Windows form when it detects Cygwin, but Git Bash reports itself
+// as MINGW64, so the conversion never ran and Java could not find the classes.
+// Guarding on cygpath's presence keeps this a no-op on Linux and macOS.
+lazy val windowsLauncherSettings = Seq(
+  scriptClasspath := Seq("*"),
+  bashScriptExtraDefines += """fix_classpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -wp "$1"; else echo "$1"; fi; }"""
+)
+
 // Per-module ASF licensing: each jar's META-INF/LICENSE describes only what is in that jar.
 // Modules without vendored code get Apache 2.0 only; workflow-operator includes mbknor attribution.
 // See project/AddMetaInfLicenseFiles.scala.
@@ -76,9 +90,9 @@ lazy val commonDependencyOverrides = Seq(
 // concerns — ASF licensing, jacoco XML coverage, and universal JVM flags —
 // grouped only so each module can apply them with a single .settings(...) call.
 lazy val commonModuleSettings =
-  asfLicensingSettings ++ coverageReportSettings ++ universalJvmFlagsSettings ++ commonDependencyOverrides
+  asfLicensingSettings ++ coverageReportSettings ++ universalJvmFlagsSettings ++ windowsLauncherSettings ++ commonDependencyOverrides
 lazy val commonModuleSettingsWithVendored =
-  asfLicensingSettingsWithVendored ++ coverageReportSettings ++ universalJvmFlagsSettings ++ commonDependencyOverrides
+  asfLicensingSettingsWithVendored ++ coverageReportSettings ++ universalJvmFlagsSettings ++ windowsLauncherSettings ++ commonDependencyOverrides
 
 val jacksonVersion = "2.18.8"
 
