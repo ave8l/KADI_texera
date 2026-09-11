@@ -22,6 +22,7 @@ import { combineLatest, fromEvent, merge, Subject } from "rxjs";
 import { NzModalCommentBoxComponent } from "./comment-box-modal/nz-modal-comment-box.component";
 import { NzModalRef, NzModalService } from "ng-zorro-antd/modal";
 import { DragDropService } from "../../service/drag-drop/drag-drop.service";
+import { OperatorMetadataService } from "../../service/operator-metadata/operator-metadata.service";
 import { DynamicSchemaService } from "../../service/dynamic-schema/dynamic-schema.service";
 import { ExecuteWorkflowService } from "../../service/execute-workflow/execute-workflow.service";
 import { fromJointPaperEvent, JointUIService, linkPathStrokeColor } from "../../service/joint-ui/joint-ui.service";
@@ -118,6 +119,16 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     metricLabel: string;
     heatLabel: string;
   } | null = null;
+  // What a hovered operator is and where it sits in this workflow. Null when hidden.
+  public operatorInfo: {
+    x: number;
+    y: number;
+    name: string;
+    group: string;
+    description: string;
+    upstream: string[];
+    downstream: string[];
+  } | null = null;
   private paperInteractive: boolean = true;
   // Keeps the paper sized to its OWN container (not just the window) and rebuilds cell geometry
   // when the container goes 0 -> real size. Needed by embedded previews like the Form View strip,
@@ -172,7 +183,8 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     private elementRef: ElementRef,
     private config: GuiConfigService,
     private agentService: AgentService,
-    private jupyterPanelService: JupyterPanelService
+    private jupyterPanelService: JupyterPanelService,
+    private operatorMetadataService: OperatorMetadataService
   ) {
     this.wrapper = this.workflowActionService.getJointGraphWrapper();
   }
@@ -235,6 +247,7 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     this.handleOperatorStatisticsUpdate();
     this.handleHeatmapOverlay();
     this.handleHeatmapHover();
+    this.handleOperatorInfoHover();
     this.handleRegionEvents();
     this.handleOperatorSuggestionHighlightEvent();
     this.handleAgentHoverHighlight();
@@ -525,6 +538,90 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
       .getTexeraGraph()
       .getAllOperators()
       .forEach(op => this.jointUIService.restoreOperatorFill(this.paper, op));
+  }
+
+  /**
+   * Shows what a hovered operator is and where it sits in this workflow.
+   *
+   * The palette explains an operator until you drop it; after that its name on
+   * the canvas is all you get, and a renamed one loses even that. This answers
+   * both — the operator's own description, plus what feeds it and what it feeds,
+   * which is the part you cannot read off the operator alone.
+   *
+   * Stays out of the way while the Performance overlay is on, since that owns
+   * the hover already.
+   */
+  private handleOperatorInfoHover(): void {
+    fromJointPaperEvent(this.paper, "element:mouseenter")
+      .pipe(untilDestroyed(this))
+      .subscribe(([elementView, evt]) => {
+        if (this.wrapper.getHeatmapView() !== null) {
+          return;
+        }
+        const operatorId = elementView.model.id.toString();
+        const graph = this.workflowActionService.getTexeraGraph();
+        if (!graph.hasOperator(operatorId)) {
+          return;
+        }
+
+        const operator = graph.getOperator(operatorId);
+        let schema;
+        try {
+          schema = this.operatorMetadataService.getOperatorSchema(operator.operatorType);
+        } catch {
+          // An operator whose type is not in the metadata (a stale workflow, a
+          // removed operator) still deserves a card — just without the prose.
+          schema = undefined;
+        }
+
+        // A renamed operator shows its own name; the schema name is the fallback.
+        const nameOf = (id: string): string => {
+          const target = graph.getOperator(id);
+          if (target.customDisplayName) {
+            return target.customDisplayName;
+          }
+          try {
+            return this.operatorMetadataService.getOperatorSchema(target.operatorType).additionalMetadata
+              .userFriendlyName;
+          } catch {
+            return target.operatorType;
+          }
+        };
+
+        const links = graph.getAllLinks();
+        // Distinct, because two operators can be joined by more than one port
+        // and the card should say each neighbour once.
+        const upstream = [
+          ...new Set(links.filter(l => l.target.operatorID === operatorId).map(l => nameOf(l.source.operatorID))),
+        ];
+        const downstream = [
+          ...new Set(links.filter(l => l.source.operatorID === operatorId).map(l => nameOf(l.target.operatorID))),
+        ];
+
+        const rect = this.editor.getBoundingClientRect();
+        const mouseEvent = evt as unknown as MouseEvent;
+        this.operatorInfo = {
+          x: mouseEvent.clientX - rect.left + 12,
+          y: mouseEvent.clientY - rect.top + 12,
+          name: operator.customDisplayName ?? schema?.additionalMetadata.userFriendlyName ?? operator.operatorType,
+          group: schema?.additionalMetadata.operatorGroupName ?? "",
+          description: schema?.additionalMetadata.operatorDescription ?? "",
+          upstream,
+          downstream,
+        };
+        // JointJS paper events fire outside Angular's zone (mirrors the heat-map handling).
+        this.changeDetectorRef.detectChanges();
+      });
+
+    fromJointPaperEvent(this.paper, "element:mouseleave")
+      .pipe(untilDestroyed(this))
+      .subscribe(() => {
+        if (this.operatorInfo === null) {
+          return;
+        }
+        this.operatorInfo = null;
+        this.changeDetectorRef.detectChanges();
+      });
   }
 
   /**
