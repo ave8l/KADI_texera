@@ -54,51 +54,28 @@
 }
 
 // #search-box is absolutely positioned, so it floats above the group list and
-// the list has to reserve that height by hand. These three values are one
-// measurement split in three — change one and the first group either hides
-// under the search box or leaves a gap.
+// the list has to reserve that height by hand.
 $search-input-height: 32px;
-$semantic-toggle-height: 24px;
 
 #spacer {
-  margin-top: $search-input-height + $semantic-toggle-height;
+  margin-top: $search-input-height;
 }
 
-.semantic-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: $semantic-toggle-height;
-  padding: 0 9px;
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.55);
-}
 
-.semantic-toggle-status {
-  font-style: italic;
-  opacity: 0.75;
-}
 
-// Offers the way out when the keyword search finds nothing. Sits below the
-// toggle it is pointing at, and overlays the list rather than displacing it —
-// #spacer reserves no room for a message that is usually absent.
-.semantic-suggestion {
+// Overlays the list rather than displacing it: the notice is brief and only
+// appears on the first query of a session.
+.semantic-loading {
   position: absolute;
   top: 100%;
   left: 0;
   width: 100%;
-  padding: 6px 9px;
-  border: none;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 4px 9px;
   background: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.65);
-  text-align: left;
-  cursor: pointer;
-
-  &:hover {
-    background: #f0f7ff;
-  }
+  font-style: italic;
+  color: rgba(0, 0, 0, 0.45);
 }
 
 // A suggestion is two stacked lines, so the fixed option height has to go.

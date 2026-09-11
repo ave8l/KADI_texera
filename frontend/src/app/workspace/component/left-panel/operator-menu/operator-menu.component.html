@@ -19,7 +19,7 @@
 
 <div id="search-box">
   <input
-    [placeholder]="semanticEnabled ? 'describe what you want to do' : 'search operator'"
+    placeholder="search, or describe what you want to do"
     nz-input
     [(ngModel)]="searchInputValue"
     (input)="onInput($event)"
@@ -51,29 +51,11 @@
     </nz-auto-option>
   </nz-autocomplete>
 
-  <div class="semantic-toggle">
-    <nz-switch
-      nzSize="small"
-      [(ngModel)]="semanticEnabled"
-      (ngModelChange)="onSemanticToggle()"></nz-switch>
-    <span class="semantic-toggle-label">search by meaning</span>
-    <span
-      *ngIf="semanticLoading"
-      class="semantic-toggle-status"
-      >loading model…</span
-    >
+  <div
+    *ngIf="semanticLoading"
+    class="semantic-loading">
+    loading model…
   </div>
-
-  <!-- The keyword search only matches operator names, so a query phrased as an
-       intent comes back empty. Say what happened and offer the way out. -->
-  <button
-    *ngIf="showSemanticSuggestion"
-    type="button"
-    class="semantic-suggestion"
-    (click)="enableSemanticSearch()">
-    No results. Try <strong>search by meaning</strong>
-  </button>
-</div>
 
 <div id="spacer"></div>
 

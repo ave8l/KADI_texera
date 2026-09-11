@@ -36,9 +36,13 @@ import { FormsModule } from "@angular/forms";
 import { NgFor, NgIf, NgTemplateOutlet } from "@angular/common";
 import { OperatorLabelComponent } from "./operator-label/operator-label.component";
 import { NzCollapseComponent, NzCollapsePanelComponent } from "ng-zorro-antd/collapse";
-import { NzSwitchComponent } from "ng-zorro-antd/switch";
 import { SemanticOperatorSearchService } from "../../../service/semantic-search/semantic-operator-search.service";
 import { NextOperatorService } from "../../../service/next-operator/next-operator.service";
+
+// Enough ranked candidates to fill the list once the exact matches are in, and
+// a ceiling so the dropdown stays scannable.
+const SEMANTIC_LIMIT = 6;
+const MAX_RESULTS = 6;
 
 @UntilDestroy()
 @Component({
@@ -58,7 +62,6 @@ import { NextOperatorService } from "../../../service/next-operator/next-operato
     NgTemplateOutlet,
     NzCollapseComponent,
     NzCollapsePanelComponent,
-    NzSwitchComponent,
   ],
 })
 export class OperatorMenuComponent {
@@ -72,8 +75,6 @@ export class OperatorMenuComponent {
 
   public canModify = true;
 
-  // Rank by meaning instead of by name. Off falls back to the fuse.js search.
-  public semanticEnabled = true;
   // True while the embedding model is downloading on first use.
   public semanticLoading = false;
   // Relevance per suggested operator, so the palette can show why it ranked.
@@ -239,27 +240,6 @@ export class OperatorMenuComponent {
     this.runSearch((e.target as HTMLInputElement).value);
   }
 
-  /**
-   * Re-runs the current query when the user flips the ranker, so switching
-   * modes shows the difference without having to retype.
-   */
-  onSemanticToggle(): void {
-    this.runSearch(this.searchInputValue);
-  }
-
-  /**
-   * True when the keyword search came back empty for a query the user actually
-   * typed — the case where ranking by meaning is worth offering.
-   */
-  public get showSemanticSuggestion(): boolean {
-    return !this.semanticEnabled && this.searchInputValue.trim().length > 0 && this.autocompleteOptions.length === 0;
-  }
-
-  public enableSemanticSearch(): void {
-    this.semanticEnabled = true;
-    this.runSearch(this.searchInputValue);
-  }
-
   /** Relevance of a suggestion, formatted for display, or undefined if ranked by keyword. */
   public scoreLabel(operator: OperatorSchema): string | undefined {
     const score = this.semanticScores.get(operator.operatorType);
@@ -275,36 +255,41 @@ export class OperatorMenuComponent {
       return;
     }
 
-    if (!this.semanticEnabled) {
-      this.semanticScores.clear();
-      this.autocompleteOptions = this.fuse.search(query).map(item => item.item);
-      return;
-    }
+    // One box, two rankers, no choice to make. The keyword search answers
+    // instantly and exactly, so its results go up straight away and the box
+    // never waits on a model to load.
+    const keywordHits = this.fuse.search(query).map(item => item.item);
+    this.autocompleteOptions = keywordHits.slice(0, MAX_RESULTS);
+    this.semanticScores.clear();
 
-    // The first semantic query pays for the model download; say so rather than
-    // leaving the palette looking broken.
     this.semanticLoading = !this.semanticSearchService.isReady();
 
     this.semanticSearchService
-      .search(query, this.searchableOperators)
+      .search(query, this.searchableOperators, SEMANTIC_LIMIT)
       .then(hits => {
         // A newer keystroke already answered — drop this stale result.
         if (queryId !== this.latestQueryId) {
           return;
         }
         this.semanticScores = new Map(hits.map(hit => [hit.schema.operatorType, hit.score]));
-        this.autocompleteOptions = hits.map(hit => hit.schema);
+        // Naming an operator must still put that operator first, so keyword
+        // hits keep their places and the ranked ones fill what is left. A query
+        // phrased as an intent matches no name, so it lands entirely on the
+        // second list — which is the case the palette could not serve before.
+        const alreadyShown = new Set(keywordHits.map(schema => schema.operatorType));
+        this.autocompleteOptions = [
+          ...keywordHits,
+          ...hits.map(hit => hit.schema).filter(schema => !alreadyShown.has(schema.operatorType)),
+        ].slice(0, MAX_RESULTS);
         this.semanticLoading = false;
       })
       .catch(() => {
         if (queryId !== this.latestQueryId) {
           return;
         }
-        // Anything from a failed model download to a corrupt index lands here.
-        // Degrade to the keyword search rather than leaving the box dead.
+        // A failed model download or a corrupt index leaves the keyword results
+        // standing, which is exactly the palette's previous behaviour.
         this.semanticLoading = false;
-        this.semanticScores.clear();
-        this.autocompleteOptions = this.fuse.search(query).map(item => item.item);
       });
   }
 
